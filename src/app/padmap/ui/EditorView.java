@@ -51,6 +51,7 @@ final class EditorView extends FrameLayout {
         bar.setOrientation(LinearLayout.VERTICAL);
         bar.setGravity(Gravity.CENTER_HORIZONTAL);
         LinearLayout add = new LinearLayout(context);
+        add.setGravity(Gravity.CENTER_HORIZONTAL);
         button(add, "+ Tap", v -> add(new Control.Tap("A", 0.5, 0.5, 0.06)));
         button(add, "+ Stick", v -> add(new Control.Joystick("LS", 0.5, 0.5, 0.12)));
         button(add, "+ Aim", v -> add(new Control.Aim("RB", "RS", 0.5, 0.5, 0.12)));
@@ -58,6 +59,7 @@ final class EditorView extends FrameLayout {
         button(add, "Close", v -> callbacks.close());
         bar.addView(add);
         LinearLayout edit = new LinearLayout(context);
+        edit.setGravity(Gravity.CENTER_HORIZONTAL);
         button(edit, "−", v -> resize(1 / RESIZE_STEP));
         button(edit, "+", v -> resize(RESIZE_STEP));
         button(edit, "Delete", v -> delete());
