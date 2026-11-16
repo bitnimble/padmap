@@ -18,6 +18,7 @@ final class Engine {
     private static final double STICK_FLICK = 0.6;
 
     private final TouchInjector injector;
+    private final Rumble rumble;
     private final Store store;
     private final String token;
     private final Set<Server.Client> clients = new HashSet<>();
@@ -30,8 +31,9 @@ final class Engine {
     private int width = 1, height = 1;
     private long aloneSince = SystemClock.uptimeMillis();
 
-    Engine(TouchInjector injector, Store store, String token) {
+    Engine(TouchInjector injector, Rumble rumble, Store store, String token) {
         this.injector = injector;
+        this.rumble = rumble;
         this.store = store;
         this.token = token;
     }
@@ -55,6 +57,7 @@ final class Engine {
 
     synchronized void onPadConnected(String name) {
         padName = name;
+        rumble.setPad(name);
         broadcastState();
     }
 
@@ -149,6 +152,7 @@ final class Engine {
 
     private void updateGrab() {
         if (gamepad != null) gamepad.setGrab(editor != null || !layout.controls().isEmpty());
+        rumble.setMapping(editor == null && !layout.controls().isEmpty());
     }
 
     private void reportInput(PadState previous, PadState next) {

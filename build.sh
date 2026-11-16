@@ -11,9 +11,11 @@ W="$B/work"
 KEY="$HOME/.android/debug.keystore"
 
 rm -rf "$W"
-mkdir -p "$W/classes" "$W/dex" "$W/test"
+mkdir -p "$W/hidden" "$W/classes" "$W/dex" "$W/test"
+# hidden/: compile-only stubs of hidden framework classes; the device's own classes are used at runtime
+javac --release 17 -classpath "$JAR" -d "$W/hidden" $(find "$R/hidden" -name '*.java')
 find "$R/src" -name '*.java' >"$W/sources"
-javac --release 17 -Xlint:all,-options,-serial -Werror -classpath "$JAR" -d "$W/classes" @"$W/sources"
+javac --release 17 -Xlint:all,-options,-serial -Werror -classpath "$JAR:$W/hidden" -d "$W/classes" @"$W/sources"
 
 javac --release 17 -d "$W/test" "$R"/src/app/padmap/layout/{Control,Layout,PadState,Mapper}.java \
     "$R"/src/app/padmap/daemon/Getevent.java "$R"/test/*.java

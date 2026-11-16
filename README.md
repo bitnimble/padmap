@@ -61,6 +61,14 @@ While the editor is open the pad doesn't touch the game.
 the screen height. Buttons: `A B X Y LB RB LT RT SELECT START HOME L3 R3 UP DOWN LEFT RIGHT`, or `KEY_<hex code>`
 for others. Sticks: `LS`, `RS`.
 
+## Vibration
+
+While Padmap is mapping the focused app, the app's vibrations rumble the gamepad (if it has motors Android can
+drive). On a device with a vibrator, Padmap mirrors the vibrator's on/off state, so the phone vibrates too and the
+pad's rumble has no strength levels. On Android without a vibrator, e.g. in a container, Padmap registers a
+stand-in vibrator service that apps vibrate through instead, which forwards each vibration's length. The
+`padmap` log says which applies (`vibration: ...`) and how many motors the pad has (`rumble: ...`).
+
 ## Shared layouts
 
 [`layouts/`](layouts/) holds layouts for particular games: copy one to `/sdcard/Padmap/` and adjust it in the
@@ -76,6 +84,8 @@ editor.
   touch devices); they resume with the next input.
 - The pad is hidden from Android only while the focused app has a layout or the editor is open.
 - One gamepad at a time: the first device with gamepad buttons and two stick axes.
+- Without a vibrator, an app that looked up the vibrator before the daemon started keeps a vibrator-less handle
+  until it restarts. Mirroring needs the daemon's user to hold `ACCESS_VIBRATOR_STATE`; the log says if it doesn't.
 
 ## How it works
 
@@ -92,3 +102,5 @@ and drops clients that don't present it.
 
 `./build.sh` (JDK 17, Android SDK with build-tools 36 and platform 36 under `ANDROID_HOME`, default
 `~/android/sdk`) runs the tests and writes `build/padmap.apk`, signed with `~/.android/debug.keystore`.
+`hidden/` holds compile-only stubs of hidden framework classes (the vibrator service interface); the device's own
+classes are used at runtime.

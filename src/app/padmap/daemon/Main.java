@@ -22,7 +22,8 @@ public final class Main {
     public static void main(String[] args) throws IOException {
         Store store = new Store();
         TouchInjector injector = new TouchInjector();
-        Engine engine = new Engine(injector, store, newToken());
+        Rumble rumble = new Rumble();
+        Engine engine = new Engine(injector, rumble, store, newToken());
         Server server = new Server(engine);
         Runtime.getRuntime().addShutdownHook(new Thread(engine::shutdown));
         Gamepad gamepad = new Gamepad(engine::onPad, engine::onPadConnected);
@@ -30,6 +31,7 @@ public final class Main {
         start(injector, "padmap-touch");
         start(gamepad, "padmap-gamepad");
         start(() -> watch(engine, store), "padmap-watch");
+        Vibration.start(rumble);
         Platform.allowOverlay();
         Platform.startApp(engine.token(), false);
         Log.i("padmap daemon running as uid " + android.os.Process.myUid());
