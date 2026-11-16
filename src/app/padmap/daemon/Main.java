@@ -52,7 +52,6 @@ public final class Main {
         thread.start();
     }
 
-    /** Follows the focused app and its layout file (picking up saves and hand edits), and keeps the app alive. */
     private static void watch(Engine engine, Store store) {
         Watched watched = new Watched();
         while (true) {

@@ -65,7 +65,7 @@ final class Engine {
         boolean changed = !Objects.equals(pkg, focused) || !layout.equals(this.layout);
         boolean resized = width != this.width || height != this.height;
         if (!changed && !resized) return;
-        if (changed) injector.cancel();
+        injector.cancel();
         focused = pkg;
         this.layout = layout;
         this.width = width;
@@ -90,41 +90,39 @@ final class Engine {
         return clients.isEmpty() && SystemClock.uptimeMillis() - aloneSince >= millis;
     }
 
-    synchronized void onMessage(Server.Client client, JSONObject message) throws JSONException {
+    void onMessage(Server.Client client, JSONObject message) throws JSONException {
         switch (message.getString("t")) {
-            case "editing" -> {
-                if (message.getBoolean("on")) setEditor(client);
-                else if (editor == client) setEditor(null);
-            }
+            case "editing" -> setEditing(client, message.getBoolean("on"));
             case "save" -> save(client, message.getString("package"), message.getJSONObject("layout"));
             default -> Log.i("ignoring message " + message.getString("t"));
         }
     }
 
     void shutdown() {
-        injector.cancel();
+        injector.cancelNow();
     }
 
     String token() {
         return token;
     }
 
+    private synchronized void setEditing(Server.Client client, boolean on) {
+        if (on) setEditor(client);
+        else if (editor == client) setEditor(null);
+    }
+
     private void save(Server.Client client, String pkg, JSONObject json) throws JSONException {
         JSONObject reply = message("saved").put("package", pkg);
-        Layout saved;
         try {
-            saved = LayoutJson.parse(json);
+            Layout saved = LayoutJson.parse(json);
+            // file only, no layout = saved: the watcher alone sets the live layout; a second writer races its poll
             store.write(pkg, LayoutJson.toJson(saved).toString(2) + "\n");
+            Log.i("saved " + saved.controls().size() + " controls for " + pkg);
         } catch (IOException | JSONException | IllegalArgumentException e) {
             Log.e("saving the layout for " + pkg + " failed", e);
-            client.send(reply.put("error", String.valueOf(e.getMessage())));
-            return;
+            reply.put("error", String.valueOf(e.getMessage()));
         }
-        Log.i("saved " + saved.controls().size() + " controls for " + pkg);
         client.send(reply);
-        if (pkg.equals(focused)) layout = saved;
-        updateGrab();
-        broadcastState();
     }
 
     private void setEditor(Server.Client client) {
@@ -157,6 +155,8 @@ final class Engine {
 
     private void reportInput(PadState previous, PadState next) {
         for (String button : next.buttons()) {
+            // the chord's keys arrive one frame apart: forwarding the first would rebind the selected control
+            if (button.equals("SELECT") || button.equals("START")) continue;
             if (!previous.pressed(button)) editor.send(input("button", button));
         }
         for (String stick : new String[] {"LS", "RS"}) {

@@ -26,10 +26,12 @@ final class Getevent {
     /** An axis's range and its value when getevent read it (at rest, normally). */
     record Range(int rest, int min, int max) {
         double centred(int value) {
+            if (max == min) return 0;
             return Math.max(-1, Math.min(1, (value - (min + max) / 2.0) / ((max - min) / 2.0)));
         }
 
         double fraction(int value) {
+            if (max == min) return 0;
             return Math.max(0, Math.min(1, (value - min) / (double) (max - min)));
         }
 

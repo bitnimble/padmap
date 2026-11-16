@@ -45,6 +45,7 @@ final class TouchInjector implements Runnable {
     private final Object injecting = new Object();
     private final Map<Integer, Touch> touches = new LinkedHashMap<>();
     private Map<Integer, Contact> target = Map.of();
+    private boolean cancelPending;
     private int width, height;
     private long downTime, lastEventTime;
 
@@ -58,21 +59,22 @@ final class TouchInjector implements Runnable {
         notifyAll();
     }
 
-    /** Abandons every touch without lifting it, so a held skill isn't cast. */
-    void cancel() {
+    /** Abandons every touch without lifting it, so a held skill isn't cast. Returns at once; the clock sends it. */
+    synchronized void cancel() {
+        target = Map.of();
+        cancelPending = !touches.isEmpty();
+        notifyAll();
+    }
+
+    /** {@link #cancel}, sent before returning. */
+    void cancelNow() {
         synchronized (injecting) {
-            MotionEvent event;
+            List<MotionEvent> events;
             synchronized (this) {
                 target = Map.of();
-                if (touches.isEmpty()) return;
-                event = obtain(MotionEvent.ACTION_CANCEL);
-                touches.clear();
+                events = takeCancel();
             }
-            try {
-                inject(List.of(event));
-            } catch (RuntimeException e) {
-                Log.e("cancelling the gesture failed", e);
-            }
+            injectQuietly(events);
         }
     }
 
@@ -88,11 +90,11 @@ final class TouchInjector implements Runnable {
             }
             long pause = TICK_MS;
             synchronized (injecting) {
-                List<MotionEvent> events;
-                synchronized (this) {
-                    events = tick(SystemClock.uptimeMillis());
-                }
                 try {
+                    List<MotionEvent> events;
+                    synchronized (this) {
+                        events = cancelPending ? takeCancel() : tick(SystemClock.uptimeMillis());
+                    }
                     if (!inject(events)) dropGesture();
                 } catch (RuntimeException e) {
                     Log.e("injection failed; dropping the gesture", e);
@@ -104,17 +106,39 @@ final class TouchInjector implements Runnable {
         }
     }
 
-    /** The dispatcher rejected us (a real finger took the screen) or injection broke: wait for the next input. */
-    private synchronized void dropGesture() {
+    private List<MotionEvent> takeCancel() {
+        cancelPending = false;
+        if (touches.isEmpty()) return List.of();
+        MotionEvent event = obtain(MotionEvent.ACTION_CANCEL);
         touches.clear();
-        target = Map.of();
+        return List.of(event);
+    }
+
+    /** The dispatcher rejected us (a real finger took the screen) or injection broke: wait for the next input. */
+    private void dropGesture() {
+        List<MotionEvent> events;
+        synchronized (this) {
+            target = Map.of();
+            events = takeCancel();
+        }
+        injectQuietly(events);
+    }
+
+    private static void injectQuietly(List<MotionEvent> events) {
+        try {
+            inject(events);
+        } catch (RuntimeException e) {
+            Log.e("cancelling the gesture failed", e);
+        }
     }
 
     private List<MotionEvent> tick(long now) {
         List<MotionEvent> events = new ArrayList<>();
         for (Map.Entry<Integer, Touch> entry : touches.entrySet()) {
-            Contact contact = target.get(entry.getKey());
             Touch touch = entry.getValue();
+            // once released, a touch only lifts: a quick re-press must land a new touch, not extend this one
+            if (!touch.wanted) continue;
+            Contact contact = target.get(entry.getKey());
             touch.wanted = contact != null;
             if (contact == null) continue;
             touch.targetX = (float) (contact.x() * width);
@@ -199,9 +223,13 @@ final class TouchInjector implements Runnable {
     /** False as soon as the dispatcher rejects one; the rest are dropped. */
     private static boolean inject(List<MotionEvent> events) {
         boolean ok = true;
-        for (MotionEvent event : events) {
-            if (ok) ok = Platform.inject(event);
-            event.recycle();
+        try {
+            for (MotionEvent event : events) {
+                if (!ok) break;
+                ok = Platform.inject(event);
+            }
+        } finally {
+            for (MotionEvent event : events) event.recycle();
         }
         return ok;
     }

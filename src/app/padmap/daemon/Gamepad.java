@@ -30,7 +30,7 @@ import java.util.function.Consumer;
  * grabbed (hidden from Android) only while {@link #setGrab} asks for it.
  */
 final class Gamepad implements Runnable {
-    private static final int EV_SYN = 0, EV_KEY = 1, EV_ABS = 3;
+    private static final int EV_SYN = 0, EV_KEY = 1, EV_ABS = 3, SYN_REPORT = 0, SYN_DROPPED = 3;
     private static final int EVENT_SIZE = android.os.Process.is64Bit() ? 24 : 16;
     private static final long RESCAN_MS = 2000;
     private static final int POLL_MS = 100;
@@ -69,6 +69,8 @@ final class Gamepad implements Runnable {
                 read(device);
             } catch (IOException | ErrnoException e) {
                 Log.i("gamepad " + device.path() + " lost: " + e.getMessage());
+            } catch (RuntimeException e) {
+                Log.e("reading the gamepad failed; reopening it", e);
             }
             connected.accept(null);
             listener.accept(PadState.NEUTRAL);
@@ -94,10 +96,14 @@ final class Gamepad implements Runnable {
         byte[] buffer = new byte[EVENT_SIZE * 64];
         ByteBuffer events = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN);
         FileDescriptor fd = Os.open(device.path(), OsConstants.O_RDONLY, 0);
-        boolean grabbed = false, grabFailed = false;
+        boolean grabbed = false, grabFailed = false, waitReported = false, dropping = false;
         PadState last = PadState.NEUTRAL;
         try {
             while (true) {
+                if (wantGrab && !grabbed && !atRest(last) && !waitReported) {
+                    Log.i("gamepad: waiting for buttons and sticks to rest before taking it from Android");
+                    waitReported = true;
+                }
                 // grabbing mid-press would leave Android holding that button or axis forever
                 if (wantGrab && !grabbed && !grabFailed && atRest(last)) {
                     try {
@@ -126,13 +132,18 @@ final class Gamepad implements Runnable {
                     int type = events.getShort(offset + EVENT_SIZE - 8) & 0xffff;
                     int code = events.getShort(offset + EVENT_SIZE - 6) & 0xffff;
                     int value = events.getInt(offset + EVENT_SIZE - 4);
-                    if (type == EV_KEY) {
+                    if (type == EV_SYN && code == SYN_DROPPED) {
+                        dropping = true;
+                    } else if (dropping) {
+                        // after an overrun the frame is partial; resume at the next complete one
+                        dropping = !(type == EV_SYN && code == SYN_REPORT);
+                    } else if (type == EV_KEY) {
                         String button = BUTTONS.getOrDefault(code, String.format("KEY_%X", code));
                         if (value == 0) keys.remove(button);
                         else keys.add(button);
                     } else if (type == EV_ABS) {
                         values.put(code, value);
-                    } else if (type == EV_SYN && code == 0) {
+                    } else if (type == EV_SYN && code == SYN_REPORT) {
                         last = state(device, axes, keys, values);
                         listener.accept(last);
                     }

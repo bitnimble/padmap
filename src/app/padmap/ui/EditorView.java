@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import app.padmap.layout.Control;
 import app.padmap.layout.Layout;
+import app.padmap.layout.LayoutJson;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,17 +71,19 @@ final class EditorView extends FrameLayout {
         hint.setTextColor(Color.WHITE);
         hint.setShadowLayer(4, 0, 0, Color.BLACK);
         bar.addView(hint);
-        addView(bar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        addView(bar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL));
         updateHint(pkg);
     }
 
     /** The edited layout, or null if nothing changed. */
     Layout changedLayout() {
         Layout layout = new Layout(controls);
-        return layout.equals(original) ? null : layout;
+        // at the file's precision: touching a control without dragging it nudges its float position
+        boolean same = LayoutJson.toJson(layout).toString().equals(LayoutJson.toJson(original).toString());
+        return same ? null : layout;
     }
 
-    /** The display rotated or resized while editing. */
     void setDisplaySize(int width, int height) {
         if (width == displayWidth && height == displayHeight) return;
         displayWidth = width;
@@ -88,7 +91,6 @@ final class EditorView extends FrameLayout {
         controlsView.invalidate();
     }
 
-    /** A pad button the daemon saw pressed while editing. */
     void onButton(String button) {
         if (selected < 0) return;
         Control control = controls.get(selected);
@@ -101,7 +103,6 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
-    /** A stick the daemon saw pushed while editing. */
     void onStick(String stick) {
         if (selected < 0) return;
         Control control = controls.get(selected);

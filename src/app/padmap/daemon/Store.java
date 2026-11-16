@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.regex.Pattern;
 
-/** Layout files, one per app package: <shared storage>/Padmap/<package>.json. */
 final class Store {
     private static final Pattern PACKAGE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
     // root outside an app's mount namespace (Lepton, su) has no /sdcard; the backing dir is the same storage
@@ -39,7 +38,7 @@ final class Store {
         return new String(Files.readAllBytes(file(pkg).toPath()), StandardCharsets.UTF_8);
     }
 
-    void write(String pkg, String json) throws IOException {
+    synchronized void write(String pkg, String json) throws IOException {
         File target = file(pkg);
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
         File temp = new File(dir, "." + pkg + ".tmp");

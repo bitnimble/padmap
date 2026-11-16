@@ -22,12 +22,15 @@ button hides while the gamepad is mapping an app with a layout, so mapped touche
 - **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen, already selected (yellow). Drag
   it onto the game's on-screen button.
 - Bind the selected control from the pad. A tap: press its button. A joystick: move its stick. An aim: press its
-  button, then move the stick that aims it (the label shows `LB+?` until you do).
-- Tap a control to select it again and rebind, move or resize it.
-- **−** / **+** resize the selected control: a tap's size, how far a joystick drags, an aim's reach.
+  button, then move the stick that aims it (the label shows `LB+?` until you do). Select and Start are kept for
+  the editor's shortcut; bind them by editing the file.
+- Tap a control to select it again and rebind, move or resize it; **Delete** removes it.
+- **−** / **+** resize the selected control: how far a joystick drags, an aim's reach (for a tap, only how big it
+  is in the editor).
 - A selected aim has a checkbox, **Aim with LS while RS is centred** (off by default): the other stick aims the
   skill while its own stick is untouched.
-- **Close** (or Select + Start) saves any changes and returns to the game.
+- **Close** (or Select + Start) saves any changes and returns to the game; a message confirms the save or says
+  why it failed. If the daemon stops while the editor is open, unsaved changes are lost.
 
 For example, an aim skill on LB aimed with the right stick: **+ Aim**, drag it onto the skill, press **LB**, push
 the **right stick**, **Close**.
@@ -63,8 +66,8 @@ for others. Sticks: `LS`, `RS`.
 
 ## Vibration
 
-While Padmap is mapping the focused app, the app's vibrations rumble the gamepad (if it has motors Android can
-drive). On a device with a vibrator, Padmap mirrors the vibrator's on/off state, so the phone vibrates too and the
+While Padmap is mapping the focused app, vibrations rumble the gamepad (if it has motors Android can drive); any
+app's vibration counts, not only the focused one's. On a device with a vibrator, Padmap mirrors the vibrator's on/off state, so the phone vibrates too and the
 pad's rumble has no strength levels. On Android without a vibrator, e.g. in a container, Padmap registers a
 stand-in vibrator service that apps vibrate through instead, which forwards each vibration's length. The
 `padmap` log says which applies (`vibration: ...`) and how many motors the pad has (`rumble: ...`).

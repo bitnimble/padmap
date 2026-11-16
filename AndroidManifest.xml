@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
-    <application android:label="Padmap" android:icon="@android:drawable/ic_menu_compass">
+    <application android:label="Padmap" android:icon="@android:drawable/ic_menu_compass" android:allowBackup="false">
         <activity android:name=".ui.MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

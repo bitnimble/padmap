@@ -1,6 +1,5 @@
 package app.padmap.daemon;
 
-import android.content.AttributionSource;
 import android.os.Build;
 import android.os.CombinedVibration;
 import android.os.IBinder;
@@ -14,16 +13,10 @@ import android.os.VibratorInfo;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-/**
- * Forwards the focused app's vibrations to the gamepad. With a real vibrator, its on/off state is mirrored; without
- * one (Android in a container), Padmap registers a stand-in vibrator service that apps vibrate instead.
- */
 final class Vibration {
     private static final String SERVICE = "vibrator_manager";
     private static final long CAP_AMPLITUDE_CONTROL = 4;
     private static final long TICK_MS = 30;
-
-    private static IVibratorStateListener mirror;
 
     private Vibration() {}
 
@@ -42,29 +35,45 @@ final class Vibration {
     }
 
     private static void standIn(Rumble rumble) {
-        for (Method method : IVibratorManagerService.class.getMethods()) {
-            try {
-                if (!Modifier.isAbstract(StandIn.class.getMethod(method.getName(), method.getParameterTypes())
-                        .getModifiers())) continue;
-            } catch (NoSuchMethodException e) {
-                // falls through: this Android's vibrator interface differs from the one StandIn implements
-            }
-            Log.i("vibration: no vibrator, and this Android's vibrator service has an unknown " + method.getName());
+        String unknown = unimplemented();
+        if (unknown != null) {
+            Log.i("vibration: no vibrator, and this Android's vibrator service has an unknown " + unknown);
             return;
         }
         ServiceManager.addService(SERVICE, new StandIn(rumble));
-        Log.i("vibration: no vibrator; standing in for one, forwarding to the gamepad");
+        Log.i(ServiceManager.checkService(SERVICE) != null
+                ? "vibration: no vibrator; standing in for one, forwarding to the gamepad"
+                : "vibration: no vibrator, and registering a stand-in was refused");
+    }
+
+    /** A method of this Android's vibrator service interface that StandIn doesn't implement, or null. */
+    private static String unimplemented() {
+        for (Method method : IVibratorManagerService.class.getMethods()) {
+            try {
+                Method own = StandIn.class.getMethod(method.getName(), method.getParameterTypes());
+                if (!Modifier.isAbstract(own.getModifiers())) continue;
+            } catch (NoSuchMethodException e) {
+                return method.getName();
+            }
+            return method.getName();
+        }
+        return null;
     }
 
     private static void mirror(IVibratorManagerService service, Rumble rumble) throws RemoteException {
-        mirror = new IVibratorStateListener.Stub() {
+        IVibratorStateListener listener = new IVibratorStateListener.Stub() {
             @Override
             public void onVibrating(boolean vibrating) {
                 if (vibrating) rumble.vibrate(Rumble.MAX_MS);
                 else rumble.cancel();
             }
         };
-        for (int id : service.getVibratorIds()) service.registerVibratorStateListener(id, mirror);
+        for (int id : service.getVibratorIds()) {
+            if (!service.registerVibratorStateListener(id, listener)) {
+                Log.i("vibration: the device's vibrator " + id + " refused a state listener");
+                return;
+            }
+        }
         Log.i("vibration: mirroring the device's vibrator to the gamepad");
     }
 
@@ -72,7 +81,8 @@ final class Vibration {
         private final Rumble rumble;
 
         StandIn(Rumble rumble) {
-            super(new GrantAll());
+            // the no-arg Stub() needs a system Context; only *_enforcePermission() reads this, and StandIn calls none
+            super(new PermissionEnforcer() {});
             this.rumble = rumble;
         }
 
@@ -131,26 +141,5 @@ final class Vibration {
                 return TICK_MS;
             }
         }
-    }
-
-    /** The real service checks VIBRATE; apps here already hold it, and app_process has no Context to check with. */
-    private static final class GrantAll extends PermissionEnforcer {
-        @Override
-        public void enforcePermission(String permission, int pid, int uid) {}
-
-        @Override
-        public void enforcePermission(String permission, AttributionSource source) {}
-
-        @Override
-        public void enforcePermissionAllOf(String[] permissions, int pid, int uid) {}
-
-        @Override
-        public void enforcePermissionAllOf(String[] permissions, AttributionSource source) {}
-
-        @Override
-        public void enforcePermissionAnyOf(String[] permissions, int pid, int uid) {}
-
-        @Override
-        public void enforcePermissionAnyOf(String[] permissions, AttributionSource source) {}
     }
 }

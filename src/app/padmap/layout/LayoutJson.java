@@ -2,6 +2,7 @@ package app.padmap.layout;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -9,6 +10,8 @@ import org.json.JSONObject;
 /** The layout file format: {"version": 1, "controls": [{"type": "tap"|"joystick"|"aim", …}]}. */
 public final class LayoutJson {
     public static final int VERSION = 1;
+    private static final Pattern BUTTON =
+            Pattern.compile("A|B|X|Y|LB|RB|LT|RT|SELECT|START|HOME|L3|R3|UP|DOWN|LEFT|RIGHT|KEY_[0-9A-F]+");
 
     private LayoutJson() {}
 
@@ -25,17 +28,23 @@ public final class LayoutJson {
         double x = fraction(json, "x"), y = fraction(json, "y"), radius = fraction(json, "radius");
         String type = json.getString("type");
         return switch (type) {
-            case "tap" -> new Control.Tap(json.getString("button"), x, y, radius);
+            case "tap" -> new Control.Tap(button(json), x, y, radius);
             case "joystick" -> new Control.Joystick(stick(json), x, y, radius);
-            case "aim" -> new Control.Aim(json.getString("button"), stick(json), json.has("fallback") && json.getBoolean("fallback"), x, y, radius);
+            case "aim" -> new Control.Aim(button(json), stick(json), json.optBoolean("fallback"), x, y, radius);
             default -> throw new JSONException("unknown control type " + type);
         };
     }
 
     private static double fraction(JSONObject json, String key) throws JSONException {
         double value = json.getDouble(key);
-        if (value < 0 || value > 1) throw new JSONException(key + " must be between 0 and 1, got " + value);
+        if (!(value >= 0 && value <= 1)) throw new JSONException(key + " must be between 0 and 1, got " + value);
         return value;
+    }
+
+    private static String button(JSONObject json) throws JSONException {
+        String button = json.getString("button");
+        if (!BUTTON.matcher(button).matches()) throw new JSONException("unknown button " + button);
+        return button;
     }
 
     private static String stick(JSONObject json) throws JSONException {

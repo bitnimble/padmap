@@ -21,6 +21,7 @@ import android.widget.Toast;
 import app.padmap.Protocol;
 import app.padmap.layout.Layout;
 import app.padmap.layout.LayoutJson;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -114,6 +115,9 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         if (source != client) return;
         state = null;
         status = "Not connected to the Padmap daemon. Start it with the command on Padmap's main screen.";
+        if (editor != null && editor.changedLayout() != null) {
+            Toast.makeText(this, "Padmap's daemon stopped; your layout changes weren't saved", Toast.LENGTH_LONG).show();
+        }
         closeEditor();
         showBubble(false);
     }
@@ -128,7 +132,8 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     private void save(Layout layout) {
         if (client == null || editing == null) return;
         try {
-            client.send(new JSONObject().put("t", "save").put("package", editing).put("layout", LayoutJson.toJson(layout)));
+            client.send(new JSONObject().put("t", "save").put("package", editing)
+                    .put("layout", LayoutJson.toJson(layout)));
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
@@ -147,19 +152,17 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         updateBubble();
     }
 
-    /**
-     * Shown over apps the editor can open on, except while the pad is mapping: then Select + Start opens the
-     * editor, and mapped touches can't land on the bubble.
-     */
     private void updateBubble() {
         String pkg = focusedPackage();
         boolean mapping = state != null && !state.isNull("pad") && hasControls();
+        // hidden while mapping: mapped touches could land on it, and Select + Start opens the editor instead
         showBubble(editor == null && pkg != null && !pkg.equals(getPackageName()) && !mapping);
     }
 
     private boolean hasControls() {
         JSONObject layout = state.optJSONObject("layout");
-        return layout != null && layout.optJSONArray("controls") != null && layout.optJSONArray("controls").length() > 0;
+        JSONArray controls = layout == null ? null : layout.optJSONArray("controls");
+        return controls != null && controls.length() > 0;
     }
 
     private void openEditor() {
@@ -239,7 +242,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         return params;
     }
 
-    /** Drags the bubble; a press that doesn't move opens the editor. */
     private final class BubbleDrag implements View.OnTouchListener {
         private final WindowManager.LayoutParams params;
         private float startX, startY;

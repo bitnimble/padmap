@@ -1,51 +1,86 @@
 package app.padmap.daemon;
 
+import android.os.Build;
 import android.os.CombinedVibration;
 import android.os.VibrationEffect;
 import android.os.VibratorManager;
 import android.view.InputDevice;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/** Rumbles the mapped gamepad through Android's input-device vibrators, only while the pad is mapping an app. */
+/** Rumbles the gamepad while it maps an app. Every method returns at once; the work runs on its own thread. */
 final class Rumble {
     static final long MAX_MS = 5000;
 
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "padmap-rumble");
+        thread.setDaemon(true);
+        return thread;
+    });
     private String padName;
-    private boolean mapping;
+    private boolean mapping, reported;
     private VibratorManager motors;
 
-    synchronized void setPad(String name) {
-        if (Objects.equals(name, padName)) return;
-        cancel();
-        padName = name;
-        motors = name == null ? null : find(name);
+    void setPad(String name) {
+        post(() -> {
+            if (Objects.equals(name, padName)) return;
+            stop();
+            padName = name;
+            motors = null;
+            reported = false;
+            motors();
+        });
     }
 
-    synchronized void setMapping(boolean mapping) {
-        if (!mapping) cancel();
-        this.mapping = mapping;
+    void setMapping(boolean on) {
+        post(() -> {
+            if (!on) stop();
+            mapping = on;
+        });
     }
 
-    synchronized void vibrate(long millis) {
-        if (!mapping || motors == null || millis <= 0) return;
-        motors.vibrate(CombinedVibration.createParallel(
-                VibrationEffect.createOneShot(Math.min(millis, MAX_MS), VibrationEffect.DEFAULT_AMPLITUDE)));
+    void vibrate(long millis) {
+        post(() -> {
+            if (!mapping || millis <= 0 || motors() == null) return;
+            motors.vibrate(CombinedVibration.createParallel(
+                    VibrationEffect.createOneShot(Math.min(millis, MAX_MS), VibrationEffect.DEFAULT_AMPLITUDE)));
+        });
     }
 
-    synchronized void cancel() {
+    void cancel() {
+        post(this::stop);
+    }
+
+    private void post(Runnable task) {
+        worker.execute(() -> {
+            try {
+                task.run();
+            } catch (RuntimeException e) {
+                Log.e("rumble failed", e);
+                motors = null;
+            }
+        });
+    }
+
+    private void stop() {
         if (motors != null) motors.cancel();
     }
 
-    private static VibratorManager find(String name) {
+    /** Looked up lazily: Android may list the pad after getevent sees it. */
+    private VibratorManager motors() {
+        if (motors != null || padName == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return motors;
         for (int id : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(id);
-            if (device == null || !device.getName().equals(name)) continue;
-            VibratorManager motors = device.getVibratorManager();
-            int count = motors.getVibratorIds().length;
-            Log.i("rumble: " + name + " has " + count + " motor(s)");
-            return count > 0 ? motors : null;
+            if (device == null || !device.getName().equals(padName)) continue;
+            VibratorManager candidate = device.getVibratorManager();
+            if (candidate.getVibratorIds().length == 0) continue;
+            motors = candidate;
+            Log.i("rumble: " + padName + " has " + candidate.getVibratorIds().length + " motor(s)");
+            return motors;
         }
-        Log.i("rumble: Android has no input device named " + name);
+        if (!reported) Log.i("rumble: Android lists no " + padName + " with motors");
+        reported = true;
         return null;
     }
 }

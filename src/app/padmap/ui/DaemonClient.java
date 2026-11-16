@@ -3,10 +3,10 @@ package app.padmap.ui;
 import android.os.Handler;
 import android.os.Looper;
 import app.padmap.Protocol;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.Reader;
 import java.io.Writer;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -19,6 +19,7 @@ import org.json.JSONObject;
 /** Keeps a connection to the daemon, reconnecting until stopped; callbacks run on the main thread. */
 final class DaemonClient {
     private static final long RETRY_MS = 2000;
+    private static final int HELLO_TIMEOUT_MS = 5000, HELLO_MAX = 512;
 
     /** Callbacks name their client, so ones still queued from a replaced client can be ignored. */
     interface Listener {
@@ -67,29 +68,41 @@ final class DaemonClient {
         while (running) {
             try (Socket connection = new Socket(InetAddress.getLoopbackAddress(), Protocol.PORT)) {
                 socket = connection;
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
-                String hello = in.readLine();
+                if (!running) break;
+                Reader in = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8);
+                connection.setSoTimeout(HELLO_TIMEOUT_MS);
+                String hello = readLine(in, HELLO_MAX);
                 // only the daemon that issued the token can prove it; anything else on the port doesn't get it
                 if (hello == null || !Protocol.proof(token).equals(new JSONObject(hello).optString("proof"))) {
                     throw new IOException("not our daemon");
                 }
+                connection.setSoTimeout(0);
                 Writer writer = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8);
                 writer.write(new JSONObject().put("t", "hello").put("token", token) + "\n");
                 writer.flush();
                 out = writer;
-                for (String line = in.readLine(); line != null; line = in.readLine()) {
+                for (String line = readLine(in, Protocol.MAX_LINE); line != null;
+                        line = readLine(in, Protocol.MAX_LINE)) {
                     JSONObject message = new JSONObject(line);
                     main.post(() -> listener.onMessage(this, message));
                 }
-            } catch (IOException | JSONException e) {
-                // daemon not running yet, restarted with a new token, or an impostor: retry
+            } catch (IOException | JSONException ignored) {
             }
             out = null;
             socket = null;
             main.post(() -> listener.onDisconnected(this));
             if (running) android.os.SystemClock.sleep(RETRY_MS);
         }
+    }
+
+    private static String readLine(Reader in, int max) throws IOException {
+        StringBuilder line = new StringBuilder();
+        for (int c = in.read(); c != '\n'; c = in.read()) {
+            if (c < 0) return line.length() == 0 ? null : line.toString();
+            if (line.length() >= max) throw new IOException("line too long");
+            line.append((char) c);
+        }
+        return line.toString();
     }
 
     private void closeSocket() {

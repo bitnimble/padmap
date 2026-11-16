@@ -24,7 +24,7 @@ for test in MapperTest app.padmap.daemon.GeteventTest; do
 done
 
 mapfile -t classes < <(find "$W/classes" -name '*.class')
-"$BT/d8" --min-api 30 --lib "$JAR" --output "$W/dex" "${classes[@]}"
+"$BT/d8" --min-api 30 --lib "$JAR" --classpath "$W/hidden" --output "$W/dex" "${classes[@]}"
 "$BT/aapt2" link -o "$W/unsigned.apk" -I "$JAR" --manifest "$R/AndroidManifest.xml" -A "$R/assets"
 (cd "$W/dex" && zip -q "$W/unsigned.apk" classes.dex)
 "$BT/zipalign" -f 4 "$W/unsigned.apk" "$W/aligned.apk"
