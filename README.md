@@ -1,0 +1,85 @@
+# Padmap
+
+Play touch-only Android games with a gamepad. Padmap turns gamepad buttons and sticks into touches on the
+screen, using a layout you place over the game with an on-screen editor. Layouts are plain JSON files, one per
+game, that you can edit by hand and share. No root needed: a helper started once over adb does the input
+injection, the same way scrcpy and Shizuku work.
+
+## Setup
+
+1. Install `padmap.apk` and open Padmap. Allow "display over other apps" (the daemon also grants it when it
+   starts).
+2. Turn on USB debugging and, from a computer with adb, run the command Padmap shows:
+   `adb shell sh /sdcard/Android/data/app.padmap/files/start.sh`. Rooted devices can run the same file with
+   `su -c sh`. The daemon keeps running after you unplug, until the device restarts.
+3. Connect a gamepad and open your game. Padmap follows the focused app and loads its layout.
+
+## Editing a layout
+
+Tap the floating ✥ button, or press **Select + Start** on the gamepad, to open the editor over the game:
+
+- **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen; drag controls into place.
+- Select a control, then press the pad button or move the stick it should use. An aim control takes its button
+  first, then its stick.
+- **−** / **+** resize the selected control: a tap's size, how far a joystick drags, an aim's reach.
+- **Save** writes the layout; **Close** (or Select + Start) returns to the game.
+
+While the editor is open the pad doesn't touch the game.
+
+## Controls
+
+| Type | Behaviour |
+| --- | --- |
+| `tap` | Touches its spot while the button is held |
+| `joystick` | When the stick leaves its deadzone: touches down at the centre, then drags in the stick's direction, up to `radius` |
+| `aim` | MOBA-style skill: touches down on the skill while the button is held, drags by the stick up to `radius`, lifts (casts) on release. Without the stick it casts in place |
+
+## Layout files
+
+`/sdcard/Padmap/<app package>.json`, read again whenever it changes:
+
+```json
+{
+  "version": 1,
+  "controls": [
+    { "type": "joystick", "stick": "LS", "x": 0.16, "y": 0.75, "radius": 0.12 },
+    { "type": "tap", "button": "A", "x": 0.88, "y": 0.8, "radius": 0.05 },
+    { "type": "aim", "button": "RB", "stick": "RS", "x": 0.75, "y": 0.7, "radius": 0.15 }
+  ]
+}
+```
+
+`x` and `y` are fractions of the screen's width and height in the game's orientation; `radius` is a fraction of
+the screen height. Buttons: `A B X Y LB RB LT RT SELECT START HOME L3 R3 UP DOWN LEFT RIGHT`, or `KEY_<hex code>`
+for others. Sticks: `LS`, `RS`.
+
+## Shared layouts
+
+[`layouts/`](layouts/) holds layouts for particular games: copy one to `/sdcard/Padmap/` and adjust it in the
+editor.
+
+| Game | Controls | Status |
+| --- | --- | --- |
+| Pokémon UNITE (`jp.pokemon.pokemonunite`) | LS moves, A attacks, RB / RT / LT are Move 1 / Move 2 / Unite Move aimed with RS, X battle item, Y recall | Positions approximate, not yet checked in a match |
+
+## Limits
+
+- Touching the screen while the gamepad is mid-gesture ends the gamepad's touches (Android doesn't merge two
+  touch devices); they resume with the next input.
+- The pad is hidden from Android only while the focused app has a layout or the editor is open.
+- One gamepad at a time: the first device with gamepad buttons and two stick axes.
+
+## How it works
+
+The APK holds both halves. The daemon (`app.padmap.daemon.Main`) runs from the APK via `app_process` as adb's
+shell user or root, which may inject input: it reads the pad from evdev (`/dev/input`, grabbed while mapping),
+maps it through the focused app's layout and injects multi-touch `MotionEvent`s. Each touch lands at its
+anchor, holds for a few frames and then ramps to its target, so games that sample touches per frame see where a
+drag started. The app (`app.padmap.ui`) is the overlay: the bubble, the editor and setup screen. They talk over
+a loopback socket; the daemon hands the app a fresh token through `am start-foreground-service` and drops
+clients that don't present it.
+
+## Building
+
+`./build.sh` (JDK 17, Android SDK with build-tools 36 and platform 36 under `ANDROID_HOME`, default
+`~/android/sdk`) runs the tests and writes `build/padmap.apk`, signed with `~/.android/debug.keystore`.

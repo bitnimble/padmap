@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "controls": [
+    { "type": "joystick", "stick": "LS", "x": 0.13, "y": 0.74, "radius": 0.13 },
+    { "type": "tap", "button": "A", "x": 0.885, "y": 0.8, "radius": 0.08 },
+    { "type": "aim", "button": "RB", "stick": "RS", "x": 0.77, "y": 0.86, "radius": 0.2 },
+    { "type": "aim", "button": "RT", "stick": "RS", "x": 0.82, "y": 0.6, "radius": 0.2 },
+    { "type": "aim", "button": "LT", "stick": "RS", "x": 0.7, "y": 0.62, "radius": 0.2 },
+    { "type": "tap", "button": "X", "x": 0.68, "y": 0.88, "radius": 0.05 },
+    { "type": "tap", "button": "Y", "x": 0.6, "y": 0.92, "radius": 0.05 }
+  ]
+}

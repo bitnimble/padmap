@@ -1,0 +1,51 @@
+import app.padmap.layout.Control;
+import app.padmap.layout.Layout;
+import app.padmap.layout.Mapper;
+import app.padmap.layout.Mapper.Contact;
+import app.padmap.layout.PadState;
+import app.padmap.layout.PadState.Stick;
+import java.util.List;
+import java.util.Set;
+
+public final class MapperTest {
+    private static final Layout LAYOUT = new Layout(List.of(
+            new Control.Joystick("LS", 0.2, 0.7, 0.1),
+            new Control.Tap("A", 0.9, 0.8, 0.05),
+            new Control.Aim("RB", "RS", 0.8, 0.6, 0.2)));
+
+    public static void main(String[] args) {
+        check(contacts(Set.of(), Stick.CENTRE, Stick.CENTRE), List.of(), "neutral pad touches nothing");
+        check(contacts(Set.of(), new Stick(0.1, 0.1), Stick.CENTRE), List.of(), "stick inside deadzone is ignored");
+        check(contacts(Set.of(), new Stick(1, 0), Stick.CENTRE),
+                List.of(new Contact(0, 0.2, 0.7, 0.25, 0.7)), "full right stick drags joystick one radius right");
+        check(contacts(Set.of(), new Stick(0, -2), Stick.CENTRE),
+                List.of(new Contact(0, 0.2, 0.7, 0.2, 0.6)), "over-range stick is clamped to the radius");
+        check(contacts(Set.of("A"), Stick.CENTRE, Stick.CENTRE),
+                List.of(new Contact(1, 0.9, 0.8, 0.9, 0.8)), "held button taps in place");
+        check(contacts(Set.of("RB"), Stick.CENTRE, new Stick(0.1, 0)),
+                List.of(new Contact(2, 0.8, 0.6, 0.8, 0.6)), "aim without stick casts in place");
+        check(contacts(Set.of("RB", "A"), Stick.CENTRE, new Stick(0, 1)),
+                List.of(new Contact(1, 0.9, 0.8, 0.9, 0.8), new Contact(2, 0.8, 0.6, 0.8, 0.8)),
+                "aim drags down by the stick while another button taps");
+        check(contacts(Set.of(), Stick.CENTRE, new Stick(1, 0)), List.of(), "aim stick alone touches nothing");
+        System.out.println("MapperTest: all passed");
+    }
+
+    private static List<Contact> contacts(Set<String> buttons, Stick left, Stick right) {
+        return Mapper.contacts(LAYOUT, new PadState(buttons, left, right), 2.0);
+    }
+
+    private static void check(List<Contact> actual, List<Contact> expected, String what) {
+        boolean same = actual.size() == expected.size();
+        for (int i = 0; same && i < actual.size(); i++) {
+            Contact a = actual.get(i), e = expected.get(i);
+            same = a.control() == e.control() && close(a.anchorX(), e.anchorX()) && close(a.anchorY(), e.anchorY())
+                    && close(a.x(), e.x()) && close(a.y(), e.y());
+        }
+        if (!same) throw new AssertionError(what + ": expected " + expected + ", got " + actual);
+    }
+
+    private static boolean close(double a, double b) {
+        return Math.abs(a - b) < 1e-9;
+    }
+}
