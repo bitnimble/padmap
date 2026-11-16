@@ -25,6 +25,7 @@ public final class Mapper {
                 if (s.magnitude() >= DEADZONE) contacts.add(dragged(i, stick, s, aspect));
             } else if (control instanceof Control.Aim aim && pad.pressed(aim.button())) {
                 PadState.Stick s = pad.stick(aim.stick());
+                if (s.magnitude() < DEADZONE && aim.fallback()) s = pad.stick(aim.stick().equals("LS") ? "RS" : "LS");
                 contacts.add(dragged(i, aim, s.magnitude() >= DEADZONE ? s : PadState.Stick.CENTRE, aspect));
             }
         }

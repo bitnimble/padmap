@@ -25,7 +25,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /** Holds the daemon connection and the overlays: a draggable bubble that opens the editor, and the editor itself. */
-public final class OverlayService extends Service implements DaemonClient.Listener, EditorView.Callbacks {
+public final class OverlayService extends Service implements DaemonClient.Listener {
     private static final String CHANNEL = "padmap";
     private static final int NOTIFICATION = 1;
     private static final String PREF_TOKEN = "token";
@@ -118,20 +118,20 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         showBubble(false);
     }
 
-    @Override
-    public void save(Layout layout) {
+    private void close() {
+        Layout changed = editor.changedLayout();
+        if (changed != null) save(changed);
+        closeEditor();
+        updateBubble();
+    }
+
+    private void save(Layout layout) {
         if (client == null || editing == null) return;
         try {
             client.send(new JSONObject().put("t", "save").put("package", editing).put("layout", LayoutJson.toJson(layout)));
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
-    }
-
-    @Override
-    public void close() {
-        closeEditor();
-        updateBubble();
     }
 
     private void onState(JSONObject message) {
@@ -172,7 +172,7 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             layout = Layout.EMPTY;
         }
         editing = pkg;
-        editor = new EditorView(this, pkg, layout, state.optInt("width"), state.optInt("height"), this);
+        editor = new EditorView(this, pkg, layout, state.optInt("width"), state.optInt("height"), this::close);
         windows.addView(editor, overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT));
         showBubble(false);

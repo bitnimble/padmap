@@ -27,7 +27,7 @@ public final class LayoutJson {
         return switch (type) {
             case "tap" -> new Control.Tap(json.getString("button"), x, y, radius);
             case "joystick" -> new Control.Joystick(stick(json), x, y, radius);
-            case "aim" -> new Control.Aim(json.getString("button"), stick(json), x, y, radius);
+            case "aim" -> new Control.Aim(json.getString("button"), stick(json), json.has("fallback") && json.getBoolean("fallback"), x, y, radius);
             default -> throw new JSONException("unknown control type " + type);
         };
     }
@@ -61,7 +61,7 @@ public final class LayoutJson {
         } else if (control instanceof Control.Joystick stick) {
             json.put("type", "joystick").put("stick", stick.stick());
         } else if (control instanceof Control.Aim aim) {
-            json.put("type", "aim").put("button", aim.button()).put("stick", aim.stick());
+            json.put("type", "aim").put("button", aim.button()).put("stick", aim.stick()).put("fallback", aim.fallback());
         }
         return json.put("x", round(control.x())).put("y", round(control.y())).put("radius", round(control.radius()));
     }

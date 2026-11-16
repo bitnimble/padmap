@@ -11,7 +11,8 @@ public final class MapperTest {
     private static final Layout LAYOUT = new Layout(List.of(
             new Control.Joystick("LS", 0.2, 0.7, 0.1),
             new Control.Tap("A", 0.9, 0.8, 0.05),
-            new Control.Aim("RB", "RS", 0.8, 0.6, 0.2)));
+            new Control.Aim("RB", "RS", false, 0.8, 0.6, 0.2),
+            new Control.Aim("LB", "RS", true, 0.6, 0.4, 0.1)));
 
     public static void main(String[] args) {
         check(contacts(Set.of(), Stick.CENTRE, Stick.CENTRE), List.of(), "neutral pad touches nothing");
@@ -28,6 +29,15 @@ public final class MapperTest {
                 List.of(new Contact(1, 0.9, 0.8, 0.9, 0.8), new Contact(2, 0.8, 0.6, 0.8, 0.8)),
                 "aim drags down by the stick while another button taps");
         check(contacts(Set.of(), Stick.CENTRE, new Stick(1, 0)), List.of(), "aim stick alone touches nothing");
+        check(contacts(Set.of("RB"), new Stick(1, 0), Stick.CENTRE),
+                List.of(new Contact(0, 0.2, 0.7, 0.25, 0.7), new Contact(2, 0.8, 0.6, 0.8, 0.6)),
+                "aim without fallback ignores the other stick");
+        check(contacts(Set.of("LB"), new Stick(0, 1), Stick.CENTRE),
+                List.of(new Contact(0, 0.2, 0.7, 0.2, 0.8), new Contact(3, 0.6, 0.4, 0.6, 0.5)),
+                "fallback aim follows the other stick while its own is centred");
+        check(contacts(Set.of("LB"), new Stick(0, 1), new Stick(-1, 0)),
+                List.of(new Contact(0, 0.2, 0.7, 0.2, 0.8), new Contact(3, 0.6, 0.4, 0.55, 0.4)),
+                "fallback aim prefers its own stick when moved");
         System.out.println("MapperTest: all passed");
     }
 

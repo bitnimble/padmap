@@ -1,6 +1,7 @@
 package app.padmap.ui;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -8,6 +9,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -23,26 +25,21 @@ import java.util.List;
 final class EditorView extends FrameLayout {
     private static final double MIN_RADIUS = 0.02, MAX_RADIUS = 0.5, RESIZE_STEP = 1.15;
 
-    interface Callbacks {
-        void save(Layout layout);
-
-        void close();
-    }
-
+    private final Layout original;
     private final List<Control> controls;
-    private final Callbacks callbacks;
     private int displayWidth, displayHeight;
     private final ControlsView controlsView;
     private final TextView hint;
+    private final CheckBox fallback;
     private int selected = -1;
     private boolean awaitingAimStick;
 
-    EditorView(Context context, String pkg, Layout layout, int displayWidth, int displayHeight, Callbacks callbacks) {
+    EditorView(Context context, String pkg, Layout layout, int displayWidth, int displayHeight, Runnable close) {
         super(context);
+        this.original = layout;
         this.controls = new ArrayList<>(layout.controls());
         this.displayWidth = displayWidth;
         this.displayHeight = displayHeight;
-        this.callbacks = callbacks;
         setBackgroundColor(Color.argb(90, 0, 0, 0));
         controlsView = new ControlsView(context);
         addView(controlsView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
@@ -54,15 +51,20 @@ final class EditorView extends FrameLayout {
         add.setGravity(Gravity.CENTER_HORIZONTAL);
         button(add, "+ Tap", v -> add(new Control.Tap("A", 0.5, 0.5, 0.06)));
         button(add, "+ Stick", v -> add(new Control.Joystick("LS", 0.5, 0.5, 0.12)));
-        button(add, "+ Aim", v -> add(new Control.Aim("RB", "RS", 0.5, 0.5, 0.12)));
-        button(add, "Save", v -> callbacks.save(new Layout(controls)));
-        button(add, "Close", v -> callbacks.close());
+        button(add, "+ Aim", v -> add(new Control.Aim("RB", "RS", false, 0.5, 0.5, 0.12)));
+        button(add, "Close", v -> close.run());
         bar.addView(add);
         LinearLayout edit = new LinearLayout(context);
-        edit.setGravity(Gravity.CENTER_HORIZONTAL);
+        edit.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
         button(edit, "−", v -> resize(1 / RESIZE_STEP));
         button(edit, "+", v -> resize(RESIZE_STEP));
         button(edit, "Delete", v -> delete());
+        fallback = new CheckBox(context);
+        fallback.setTextColor(Color.WHITE);
+        fallback.setButtonTintList(ColorStateList.valueOf(Color.WHITE));
+        fallback.setShadowLayer(4, 0, 0, Color.BLACK);
+        fallback.setOnClickListener(v -> setFallback(fallback.isChecked()));
+        edit.addView(fallback);
         bar.addView(edit);
         hint = new TextView(context);
         hint.setTextColor(Color.WHITE);
@@ -70,6 +72,12 @@ final class EditorView extends FrameLayout {
         bar.addView(hint);
         addView(bar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
         updateHint(pkg);
+    }
+
+    /** The edited layout, or null if nothing changed. */
+    Layout changedLayout() {
+        Layout layout = new Layout(controls);
+        return layout.equals(original) ? null : layout;
     }
 
     /** The display rotated or resized while editing. */
@@ -87,7 +95,7 @@ final class EditorView extends FrameLayout {
         if (control instanceof Control.Tap tap) {
             controls.set(selected, new Control.Tap(button, tap.x(), tap.y(), tap.radius()));
         } else if (control instanceof Control.Aim aim) {
-            controls.set(selected, new Control.Aim(button, aim.stick(), aim.x(), aim.y(), aim.radius()));
+            controls.set(selected, new Control.Aim(button, aim.stick(), aim.fallback(), aim.x(), aim.y(), aim.radius()));
             awaitingAimStick = true;
         }
         changed();
@@ -100,7 +108,7 @@ final class EditorView extends FrameLayout {
         if (control instanceof Control.Joystick joystick) {
             controls.set(selected, new Control.Joystick(stick, joystick.x(), joystick.y(), joystick.radius()));
         } else if (control instanceof Control.Aim aim) {
-            controls.set(selected, new Control.Aim(aim.button(), stick, aim.x(), aim.y(), aim.radius()));
+            controls.set(selected, new Control.Aim(aim.button(), stick, aim.fallback(), aim.x(), aim.y(), aim.radius()));
             awaitingAimStick = false;
         }
         changed();
@@ -128,6 +136,12 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
+    private void setFallback(boolean on) {
+        if (selected < 0 || !(controls.get(selected) instanceof Control.Aim aim)) return;
+        controls.set(selected, new Control.Aim(aim.button(), aim.stick(), on, aim.x(), aim.y(), aim.radius()));
+        changed();
+    }
+
     private void delete() {
         if (selected < 0) return;
         controls.remove(selected);
@@ -146,9 +160,16 @@ final class EditorView extends FrameLayout {
     }
 
     private void updateHint(String pkg) {
+        Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
+        fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);
+        if (selectedAim != null) {
+            String other = selectedAim.stick().equals("LS") ? "RS" : "LS";
+            fallback.setText("Aim with " + other + " while " + selectedAim.stick() + " is centred");
+            fallback.setChecked(selectedAim.fallback());
+        }
         if (selected < 0) {
             hint.setText((pkg != null ? "Editing " + pkg + ". " : "")
-                    + "Add a control, or tap one to change it. Select + Start closes the editor.");
+                    + "Add a control, or tap one to change it. Close or Select + Start saves and returns to the game.");
             return;
         }
         Control control = controls.get(selected);

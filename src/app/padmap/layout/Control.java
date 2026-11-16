@@ -34,14 +34,17 @@ public sealed interface Control permits Control.Tap, Control.Joystick, Control.A
         }
     }
 
-    /** MOBA skill: touches down at (x, y) while the button is held, drags by the stick within radius, lifts to cast. */
-    record Aim(String button, String stick, double x, double y, double radius) implements Control {
+    /**
+     * MOBA skill: touches down at (x, y) while the button is held, drags by the stick within radius, lifts to cast.
+     * With fallback, the other stick aims while this one is centred.
+     */
+    record Aim(String button, String stick, boolean fallback, double x, double y, double radius) implements Control {
         public Control moved(double x, double y) {
-            return new Aim(button, stick, x, y, radius);
+            return new Aim(button, stick, fallback, x, y, radius);
         }
 
         public Control resized(double radius) {
-            return new Aim(button, stick, x, y, radius);
+            return new Aim(button, stick, fallback, x, y, radius);
         }
     }
 }

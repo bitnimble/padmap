@@ -3,7 +3,8 @@
 LOG=/data/local/tmp/padmap.log
 APK=$(pm path app.padmap | sed -n 's/^package://p' | head -n 1)
 [ -n "$APK" ] || { echo "Padmap isn't installed" >&2; exit 1; }
-pkill -x padmap && sleep 1
+# pidof, not pkill: app_process renames comm to "main"; only the cmdline says padmap
+OLD=$(pidof padmap) && kill $OLD && sleep 1
 CLASSPATH="$APK" setsid nohup app_process / --nice-name=padmap app.padmap.daemon.Main </dev/null >"$LOG" 2>&1 &
 sleep 2
 if pidof padmap >/dev/null; then

@@ -25,10 +25,12 @@ button hides while the gamepad is mapping an app with a layout, so mapped touche
   button, then move the stick that aims it (the label shows `LB+?` until you do).
 - Tap a control to select it again and rebind, move or resize it.
 - **−** / **+** resize the selected control: a tap's size, how far a joystick drags, an aim's reach.
-- **Save** writes the layout; **Close** (or Select + Start) returns to the game.
+- A selected aim has a checkbox, **Aim with LS while RS is centred** (off by default): the other stick aims the
+  skill while its own stick is untouched.
+- **Close** (or Select + Start) saves any changes and returns to the game.
 
 For example, an aim skill on LB aimed with the right stick: **+ Aim**, drag it onto the skill, press **LB**, push
-the **right stick**, **Save**.
+the **right stick**, **Close**.
 
 While the editor is open the pad doesn't touch the game.
 
@@ -38,7 +40,7 @@ While the editor is open the pad doesn't touch the game.
 | --- | --- |
 | `tap` | Touches its spot while the button is held |
 | `joystick` | When the stick leaves its deadzone: touches down at the centre, then drags in the stick's direction, up to `radius` |
-| `aim` | MOBA-style skill: touches down on the skill while the button is held, drags by the stick up to `radius`, lifts (casts) on release. Without the stick it casts in place |
+| `aim` | MOBA-style skill: touches down on the skill while the button is held, drags by the stick up to `radius`, lifts (casts) on release. Without the stick it casts in place; with `"fallback": true` the other stick aims while `stick` is centred |
 
 ## Layout files
 
@@ -50,7 +52,7 @@ While the editor is open the pad doesn't touch the game.
   "controls": [
     { "type": "joystick", "stick": "LS", "x": 0.16, "y": 0.75, "radius": 0.12 },
     { "type": "tap", "button": "A", "x": 0.88, "y": 0.8, "radius": 0.05 },
-    { "type": "aim", "button": "RB", "stick": "RS", "x": 0.75, "y": 0.7, "radius": 0.15 }
+    { "type": "aim", "button": "RB", "stick": "RS", "fallback": false, "x": 0.75, "y": 0.7, "radius": 0.15 }
   ]
 }
 ```
