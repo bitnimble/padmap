@@ -5,20 +5,25 @@ import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
 import android.system.StructPollfd;
+import static app.padmap.daemon.Getevent.ABS_HAT0X;
+import static app.padmap.daemon.Getevent.ABS_HAT0Y;
+import static app.padmap.daemon.Getevent.ABS_X;
+import static app.padmap.daemon.Getevent.ABS_Y;
+
+import app.padmap.daemon.Getevent.Axes;
+import app.padmap.daemon.Getevent.Device;
+import app.padmap.daemon.Getevent.Range;
+import app.padmap.layout.Mapper;
 import app.padmap.layout.PadState;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Reads the first evdev gamepad, reporting a PadState per input frame and rescanning when it goes away. The pad is
@@ -26,9 +31,6 @@ import java.util.regex.Pattern;
  */
 final class Gamepad implements Runnable {
     private static final int EV_SYN = 0, EV_KEY = 1, EV_ABS = 3;
-    private static final int BTN_SOUTH = 0x130;
-    private static final int ABS_X = 0x00, ABS_Y = 0x01, ABS_Z = 0x02, ABS_RX = 0x03, ABS_RY = 0x04, ABS_RZ = 0x05,
-            ABS_GAS = 0x09, ABS_BRAKE = 0x0a, ABS_HAT0X = 0x10, ABS_HAT0Y = 0x11;
     private static final int EVENT_SIZE = android.os.Process.is64Bit() ? 24 : 16;
     private static final long RESCAN_MS = 2000;
     private static final int POLL_MS = 100;
@@ -38,36 +40,6 @@ final class Gamepad implements Runnable {
             Map.entry(0x13a, "SELECT"), Map.entry(0x13b, "START"), Map.entry(0x13c, "HOME"),
             Map.entry(0x13d, "L3"), Map.entry(0x13e, "R3"),
             Map.entry(0x220, "UP"), Map.entry(0x221, "DOWN"), Map.entry(0x222, "LEFT"), Map.entry(0x223, "RIGHT"));
-    private static final Pattern DEVICE = Pattern.compile("^add device \\d+: (\\S+)");
-    private static final Pattern NAME = Pattern.compile("^\\s+name:\\s+\"(.*)\"");
-    private static final Pattern SECTION = Pattern.compile("^\\s+([A-Z]+)\\s*\\(([0-9a-f]{4})\\):(.*)$");
-    private static final Pattern ABS_RANGE =
-            Pattern.compile("([0-9a-f]{4})\\s+: value -?\\d+, min (-?\\d+), max (-?\\d+)");
-
-    record Range(int min, int max) {
-        double centred(int value) {
-            return Math.max(-1, Math.min(1, (value - (min + max) / 2.0) / ((max - min) / 2.0)));
-        }
-
-        double fraction(int value) {
-            return Math.max(0, Math.min(1, (value - min) / (double) (max - min)));
-        }
-    }
-
-    /** Where a pad reports each stick and trigger: xpad-style (RS on RX/RY) or HID-style (RS on Z/RZ). */
-    record Axes(int rightX, int rightY, int leftTrigger, int rightTrigger) {
-        static Axes of(Map<Integer, Range> ranges) {
-            return ranges.containsKey(ABS_RX)
-                    ? new Axes(ABS_RX, ABS_RY, ABS_Z, ABS_RZ)
-                    : new Axes(ABS_Z, ABS_RZ, ABS_BRAKE, ABS_GAS);
-        }
-    }
-
-    record Device(String path, String name, Set<Integer> keys, Map<Integer, Range> ranges) {
-        boolean isGamepad() {
-            return keys.contains(BTN_SOUTH) && ranges.containsKey(ABS_X) && ranges.containsKey(ABS_Y);
-        }
-    }
 
     private final Consumer<PadState> listener;
     private final Consumer<String> connected;
@@ -106,58 +78,13 @@ final class Gamepad implements Runnable {
 
     private Device find() {
         try {
-            for (Device device : parse(Platform.exec("getevent", "-p"))) {
+            for (Device device : Getevent.parse(Platform.exec("getevent", "-p"))) {
                 if (device.isGamepad()) return device;
             }
         } catch (IOException e) {
             Log.i("getevent -p failed: " + e.getMessage());
         }
         return null;
-    }
-
-    static List<Device> parse(String getevent) {
-        List<Device> devices = new ArrayList<>();
-        String path = null, name = "", section = "";
-        Set<Integer> keys = new HashSet<>();
-        Map<Integer, Range> ranges = new HashMap<>();
-        for (String line : getevent.split("\n")) {
-            Matcher device = DEVICE.matcher(line);
-            if (device.find()) {
-                if (path != null) devices.add(new Device(path, name, keys, ranges));
-                path = device.group(1);
-                name = "";
-                section = "";
-                keys = new HashSet<>();
-                ranges = new HashMap<>();
-                continue;
-            }
-            Matcher named = NAME.matcher(line);
-            if (named.find()) {
-                name = named.group(1);
-                continue;
-            }
-            String body = line;
-            Matcher header = SECTION.matcher(line);
-            if (header.find()) {
-                section = header.group(1);
-                body = header.group(3);
-            } else if (!line.startsWith("        ")) {
-                section = "";
-            }
-            if (section.equals("KEY")) {
-                for (String token : body.trim().split("\\s+")) {
-                    if (token.matches("[0-9a-f]{4}")) keys.add(Integer.parseInt(token, 16));
-                }
-            } else if (section.equals("ABS")) {
-                Matcher range = ABS_RANGE.matcher(body);
-                if (range.find()) {
-                    ranges.put(Integer.parseInt(range.group(1), 16),
-                            new Range(Integer.parseInt(range.group(2)), Integer.parseInt(range.group(3))));
-                }
-            }
-        }
-        if (path != null) devices.add(new Device(path, name, keys, ranges));
-        return devices;
     }
 
     private void read(Device device) throws IOException, ErrnoException {
@@ -167,15 +94,24 @@ final class Gamepad implements Runnable {
         byte[] buffer = new byte[EVENT_SIZE * 64];
         ByteBuffer events = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN);
         FileDescriptor fd = Os.open(device.path(), OsConstants.O_RDONLY, 0);
-        boolean grabbed = false;
+        boolean grabbed = false, grabFailed = false;
+        PadState last = PadState.NEUTRAL;
         try {
             while (true) {
-                if (wantGrab && !grabbed && keys.isEmpty()) {
-                    Platform.grab(fd);
-                    grabbed = true;
+                // grabbing mid-press would leave Android holding that button or axis forever
+                if (wantGrab && !grabbed && !grabFailed && atRest(last)) {
+                    try {
+                        Platform.grab(fd);
+                        grabbed = true;
+                    } catch (IOException e) {
+                        Log.e("can't grab the gamepad; Android will see it too", e);
+                        grabFailed = true;
+                    }
                 } else if (!wantGrab && grabbed) {
                     // EVIOCGRAB can't be released through libcore (it always passes a non-null pointer): reopen
-                    Os.close(fd);
+                    FileDescriptor grabbedFd = fd;
+                    fd = null;
+                    Os.close(grabbedFd);
                     fd = Os.open(device.path(), OsConstants.O_RDONLY, 0);
                     grabbed = false;
                 }
@@ -197,13 +133,19 @@ final class Gamepad implements Runnable {
                     } else if (type == EV_ABS) {
                         values.put(code, value);
                     } else if (type == EV_SYN && code == 0) {
-                        listener.accept(state(device, axes, keys, values));
+                        last = state(device, axes, keys, values);
+                        listener.accept(last);
                     }
                 }
             }
         } finally {
-            Os.close(fd);
+            if (fd != null) Os.close(fd);
         }
+    }
+
+    private static boolean atRest(PadState state) {
+        return state.buttons().isEmpty() && state.left().magnitude() < Mapper.DEADZONE
+                && state.right().magnitude() < Mapper.DEADZONE;
     }
 
     private static PadState state(Device device, Axes axes, Set<String> keys, Map<Integer, Integer> values) {
@@ -222,13 +164,11 @@ final class Gamepad implements Runnable {
 
     private static double centred(Device device, Map<Integer, Integer> values, int code) {
         Range range = device.ranges().get(code);
-        Integer value = values.get(code);
-        return range == null || value == null ? 0 : range.centred(value);
+        return range == null ? 0 : range.centred(values.getOrDefault(code, range.rest()));
     }
 
     private static double fraction(Device device, Map<Integer, Integer> values, int code) {
         Range range = device.ranges().get(code);
-        Integer value = values.get(code);
-        return range == null || value == null ? 0 : range.fraction(value);
+        return range == null ? 0 : range.fraction(values.getOrDefault(code, range.rest()));
     }
 }

@@ -16,7 +16,10 @@ import java.util.Map;
  * drag started; taps are held long enough to be seen.
  */
 final class TouchInjector implements Runnable {
-    private static final long TICK_MS = 8, LAND_MS = 32, RAMP_MS = 40, MIN_HOLD_MS = 50;
+    private static final long TICK_MS = 8, LAND_MS = 32, RAMP_MS = 40, MIN_HOLD_MS = 50, ERROR_BACKOFF_MS = 1000;
+    // a device id no real touchscreen has: with the touchscreen's own id, a finger's DOWN would silently merge
+    // into our gesture instead of the dispatcher rejecting ours
+    private static final int DEVICE_ID = -1;
 
     private static final class Touch {
         final int id;
@@ -32,10 +35,15 @@ final class TouchInjector implements Runnable {
             this.anchorX = x = targetX = anchorX;
             this.anchorY = y = targetY = anchorY;
         }
+
+        boolean ramped(long now) {
+            return now - landedAt >= LAND_MS + RAMP_MS || (anchorX == targetX && anchorY == targetY);
+        }
     }
 
+    // held across building and injecting a batch, so a cancel can't land between a tick's events; taken before this
+    private final Object injecting = new Object();
     private final Map<Integer, Touch> touches = new LinkedHashMap<>();
-    private final int deviceId = Platform.touchscreenDeviceId();
     private Map<Integer, Contact> target = Map.of();
     private int width, height;
     private long downTime, lastEventTime;
@@ -51,32 +59,59 @@ final class TouchInjector implements Runnable {
     }
 
     /** Abandons every touch without lifting it, so a held skill isn't cast. */
-    synchronized void cancel() {
-        target = Map.of();
-        if (touches.isEmpty()) return;
-        send(MotionEvent.ACTION_CANCEL);
-        touches.clear();
-    }
-
-    @Override
-    public void run() {
-        synchronized (this) {
-            while (true) {
-                try {
-                    while (target.isEmpty() && touches.isEmpty()) wait();
-                    tick(SystemClock.uptimeMillis());
-                    wait(TICK_MS);
-                } catch (InterruptedException e) {
-                    return;
-                } catch (RuntimeException e) {
-                    Log.e("injection failed; dropping the gesture", e);
-                    touches.clear();
-                }
+    void cancel() {
+        synchronized (injecting) {
+            MotionEvent event;
+            synchronized (this) {
+                target = Map.of();
+                if (touches.isEmpty()) return;
+                event = obtain(MotionEvent.ACTION_CANCEL);
+                touches.clear();
+            }
+            try {
+                inject(List.of(event));
+            } catch (RuntimeException e) {
+                Log.e("cancelling the gesture failed", e);
             }
         }
     }
 
-    private void tick(long now) {
+    @Override
+    public void run() {
+        while (true) {
+            synchronized (this) {
+                try {
+                    while (target.isEmpty() && touches.isEmpty()) wait();
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+            long pause = TICK_MS;
+            synchronized (injecting) {
+                List<MotionEvent> events;
+                synchronized (this) {
+                    events = tick(SystemClock.uptimeMillis());
+                }
+                try {
+                    if (!inject(events)) dropGesture();
+                } catch (RuntimeException e) {
+                    Log.e("injection failed; dropping the gesture", e);
+                    dropGesture();
+                    pause = ERROR_BACKOFF_MS;
+                }
+            }
+            SystemClock.sleep(pause);
+        }
+    }
+
+    /** The dispatcher rejected us (a real finger took the screen) or injection broke: wait for the next input. */
+    private synchronized void dropGesture() {
+        touches.clear();
+        target = Map.of();
+    }
+
+    private List<MotionEvent> tick(long now) {
+        List<MotionEvent> events = new ArrayList<>();
         for (Map.Entry<Integer, Touch> entry : touches.entrySet()) {
             Contact contact = target.get(entry.getKey());
             Touch touch = entry.getValue();
@@ -88,19 +123,16 @@ final class TouchInjector implements Runnable {
         for (Integer control : new ArrayList<>(touches.keySet())) {
             Touch touch = touches.get(control);
             // the last move goes out a frame before the lift, so an aimed skill is released where it was aimed
-            if (!touch.wanted && now - touch.landedAt >= MIN_HOLD_MS && now - touch.movedAt >= TICK_MS) {
-                if (!lift(control)) return;
+            if (!touch.wanted && touch.ramped(now) && now - touch.landedAt >= MIN_HOLD_MS
+                    && now - touch.movedAt >= TICK_MS) {
+                events.add(lift(control));
             }
         }
         for (Map.Entry<Integer, Contact> entry : target.entrySet()) {
-            if (touches.containsKey(entry.getKey())) continue;
-            Contact contact = entry.getValue();
-            if (!land(entry.getKey(), now, (float) (contact.anchorX() * width), (float) (contact.anchorY() * height),
-                    (float) (contact.x() * width), (float) (contact.y() * height))) return;
+            if (!touches.containsKey(entry.getKey())) events.add(land(entry.getKey(), entry.getValue(), now));
         }
         boolean moved = false;
         for (Touch touch : touches.values()) {
-            if (!touch.wanted) continue;
             float progress = Math.max(0, Math.min(1, (now - touch.landedAt - LAND_MS) / (float) RAMP_MS));
             float x = touch.anchorX + (touch.targetX - touch.anchorX) * progress;
             float y = touch.anchorY + (touch.targetY - touch.anchorY) * progress;
@@ -110,31 +142,29 @@ final class TouchInjector implements Runnable {
             touch.movedAt = now;
             moved = true;
         }
-        if (moved && !send(MotionEvent.ACTION_MOVE)) touches.clear();
+        if (moved) events.add(obtain(MotionEvent.ACTION_MOVE));
+        return events;
     }
 
-    private boolean land(int control, long now, float anchorX, float anchorY, float targetX, float targetY) {
+    private MotionEvent land(int control, Contact contact, long now) {
         if (touches.isEmpty()) downTime = now;
-        Touch touch = new Touch(freeId(), now, anchorX, anchorY);
-        touch.targetX = targetX;
-        touch.targetY = targetY;
+        Touch touch = new Touch(freeId(), now, (float) (contact.anchorX() * width), (float) (contact.anchorY() * height));
+        touch.targetX = (float) (contact.x() * width);
+        touch.targetY = (float) (contact.y() * height);
         touches.put(control, touch);
         int index = touches.size() - 1;
-        boolean sent = send(index == 0
+        return obtain(index == 0
                 ? MotionEvent.ACTION_DOWN
                 : MotionEvent.ACTION_POINTER_DOWN | index << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-        if (!sent) touches.clear();
-        return sent;
     }
 
-    private boolean lift(int control) {
+    private MotionEvent lift(int control) {
         int index = new ArrayList<>(touches.keySet()).indexOf(control);
-        boolean sent = send(touches.size() == 1
+        MotionEvent event = obtain(touches.size() == 1
                 ? MotionEvent.ACTION_UP
                 : MotionEvent.ACTION_POINTER_UP | index << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-        if (sent) touches.remove(control);
-        else touches.clear();
-        return sent;
+        touches.remove(control);
+        return event;
     }
 
     private int freeId() {
@@ -145,8 +175,7 @@ final class TouchInjector implements Runnable {
         }
     }
 
-    /** False when the dispatcher dropped it: a real finger took over the screen and ended our gesture. */
-    private boolean send(int action) {
+    private MotionEvent obtain(int action) {
         int count = touches.size();
         MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[count];
         MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[count];
@@ -163,12 +192,17 @@ final class TouchInjector implements Runnable {
             i++;
         }
         lastEventTime = Math.max(SystemClock.uptimeMillis(), lastEventTime + 1);
-        MotionEvent event = MotionEvent.obtain(downTime, lastEventTime, action, count, properties, coords,
-                0, 0, 1, 1, deviceId, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
-        try {
-            return Platform.inject(event);
-        } finally {
+        return MotionEvent.obtain(downTime, lastEventTime, action, count, properties, coords,
+                0, 0, 1, 1, DEVICE_ID, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+    }
+
+    /** False as soon as the dispatcher rejects one; the rest are dropped. */
+    private static boolean inject(List<MotionEvent> events) {
+        boolean ok = true;
+        for (MotionEvent event : events) {
+            if (ok) ok = Platform.inject(event);
             event.recycle();
         }
+        return ok;
     }
 }

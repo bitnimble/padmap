@@ -16,7 +16,8 @@ injection, the same way scrcpy and Shizuku work.
 
 ## Editing a layout
 
-Tap the floating ✥ button, or press **Select + Start** on the gamepad, to open the editor over the game:
+Press **Select + Start** on the gamepad, or tap the floating ✥ button, to open the editor over the game. The
+button hides while the gamepad is mapping an app with a layout, so mapped touches can't land on it.
 
 - **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen; drag controls into place.
 - Select a control, then press the pad button or move the stick it should use. An aim control takes its button
@@ -76,8 +77,9 @@ shell user or root, which may inject input: it reads the pad from evdev (`/dev/i
 maps it through the focused app's layout and injects multi-touch `MotionEvent`s. Each touch lands at its
 anchor, holds for a few frames and then ramps to its target, so games that sample touches per frame see where a
 drag started. The app (`app.padmap.ui`) is the overlay: the bubble, the editor and setup screen. They talk over
-a loopback socket; the daemon hands the app a fresh token through `am start-foreground-service` and drops
-clients that don't present it.
+a loopback socket: the daemon hands the app a fresh token through `am start-foreground-service` (the service
+requires `INJECT_EVENTS`, which only shell and root hold), opens each connection by proving it knows the token,
+and drops clients that don't present it.
 
 ## Building
 

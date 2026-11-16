@@ -2,7 +2,6 @@ package app.padmap.daemon;
 
 import android.content.ComponentName;
 import app.padmap.Protocol;
-import android.view.InputDevice;
 import android.view.InputEvent;
 import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
@@ -16,7 +15,8 @@ import java.util.regex.Pattern;
 final class Platform {
     private static final int INJECT_MODE_WAIT_FOR_RESULT = 1;
     private static final int EVIOCGRAB = 0x40044590;
-    private static final Pattern TOP_ACTIVITY = Pattern.compile("topResumedActivity=\\S+ \\S+ ([A-Za-z0-9._]+)/");
+    private static final Pattern TOP_ACTIVITY =
+            Pattern.compile("(?:topResumedActivity|mResumedActivity)[=:] ?\\S+ \\S+ ([A-Za-z0-9._]+)/");
 
     private static Object inputManager;
     private static Method injectInputEvent;
@@ -44,20 +44,17 @@ final class Platform {
         injectInputEvent = inputManager.getClass().getMethod("injectInputEvent", InputEvent.class, int.class);
     }
 
-    /** The real touchscreen's input device id (some games ignore touches from unknown devices), else 0. */
-    static int touchscreenDeviceId() {
-        for (int id : InputDevice.getDeviceIds()) {
-            InputDevice device = InputDevice.getDevice(id);
-            if (device != null && device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) return id;
-        }
-        return 0;
-    }
-
     /** Package of the focused (top resumed) activity, or null. */
     static String focusedPackage() {
         try {
             Object tasks = Class.forName("android.app.ActivityTaskManager").getMethod("getService").invoke(null);
-            Object info = tasks.getClass().getMethod("getFocusedRootTaskInfo").invoke(tasks);
+            Method focused;
+            try {
+                focused = tasks.getClass().getMethod("getFocusedRootTaskInfo");
+            } catch (NoSuchMethodException e) {
+                focused = tasks.getClass().getMethod("getFocusedStackInfo"); // Android 11
+            }
+            Object info = focused.invoke(tasks);
             if (info == null) return null;
             ComponentName top = (ComponentName) info.getClass().getField("topActivity").get(info);
             return top == null ? null : top.getPackageName();
@@ -111,14 +108,18 @@ final class Platform {
         }
     }
 
-    /** Starts (or re-handshakes) the app's overlay service with this daemon's token. */
+    /** Starts (or re-handshakes) the app's overlay service with this daemon's token, in the background. */
     static void startApp(String token, boolean edit) {
-        try {
-            exec("am", "start-foreground-service", "-n", Protocol.SERVICE, "--es", Protocol.EXTRA_TOKEN, token,
-                    "--ez", Protocol.EXTRA_EDIT, String.valueOf(edit));
-        } catch (IOException e) {
-            Log.e("starting the app failed", e);
-        }
+        Thread thread = new Thread(() -> {
+            try {
+                exec("am", "start-foreground-service", "-n", Protocol.SERVICE, "--es", Protocol.EXTRA_TOKEN, token,
+                        "--ez", Protocol.EXTRA_EDIT, String.valueOf(edit));
+            } catch (IOException e) {
+                Log.e("starting the app failed", e);
+            }
+        }, "padmap-start-app");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     static void allowOverlay() {

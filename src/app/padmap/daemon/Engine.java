@@ -93,7 +93,7 @@ final class Engine {
                 if (message.getBoolean("on")) setEditor(client);
                 else if (editor == client) setEditor(null);
             }
-            case "save" -> save(message.getString("package"), LayoutJson.parse(message.getJSONObject("layout")));
+            case "save" -> save(client, message.getString("package"), message.getJSONObject("layout"));
             default -> Log.i("ignoring message " + message.getString("t"));
         }
     }
@@ -106,14 +106,19 @@ final class Engine {
         return token;
     }
 
-    private void save(String pkg, Layout saved) {
+    private void save(Server.Client client, String pkg, JSONObject json) throws JSONException {
+        JSONObject reply = message("saved").put("package", pkg);
+        Layout saved;
         try {
+            saved = LayoutJson.parse(json);
             store.write(pkg, LayoutJson.toJson(saved).toString(2) + "\n");
         } catch (IOException | JSONException | IllegalArgumentException e) {
             Log.e("saving the layout for " + pkg + " failed", e);
+            client.send(reply.put("error", String.valueOf(e.getMessage())));
             return;
         }
         Log.i("saved " + saved.controls().size() + " controls for " + pkg);
+        client.send(reply);
         if (pkg.equals(focused)) layout = saved;
         updateGrab();
         broadcastState();

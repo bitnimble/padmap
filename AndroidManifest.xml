@@ -18,10 +18,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- exported: shell (adb) starts it to hand over the daemon's token -->
+        <!-- exported to shell (adb) and root, which start it to hand over the daemon's token; INJECT_EVENTS keeps
+             other apps from handing it a fake one -->
         <service
             android:name=".ui.OverlayService"
             android:exported="true"
+            android:permission="android.permission.INJECT_EVENTS"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"

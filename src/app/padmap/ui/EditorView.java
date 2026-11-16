@@ -30,8 +30,8 @@ final class EditorView extends FrameLayout {
     }
 
     private final List<Control> controls;
-    private final int displayWidth, displayHeight;
     private final Callbacks callbacks;
+    private int displayWidth, displayHeight;
     private final ControlsView controlsView;
     private final TextView hint;
     private int selected = -1;
@@ -50,22 +50,32 @@ final class EditorView extends FrameLayout {
         LinearLayout bar = new LinearLayout(context);
         bar.setOrientation(LinearLayout.VERTICAL);
         bar.setGravity(Gravity.CENTER_HORIZONTAL);
-        LinearLayout buttons = new LinearLayout(context);
-        button(buttons, "+ Tap", v -> add(new Control.Tap("A", 0.5, 0.5, 0.06)));
-        button(buttons, "+ Stick", v -> add(new Control.Joystick("LS", 0.5, 0.5, 0.12)));
-        button(buttons, "+ Aim", v -> add(new Control.Aim("RB", "RS", 0.5, 0.5, 0.12)));
-        button(buttons, "−", v -> resize(1 / RESIZE_STEP));
-        button(buttons, "+", v -> resize(RESIZE_STEP));
-        button(buttons, "Delete", v -> delete());
-        button(buttons, "Save", v -> callbacks.save(new Layout(controls)));
-        button(buttons, "Close", v -> callbacks.close());
-        bar.addView(buttons);
+        LinearLayout add = new LinearLayout(context);
+        button(add, "+ Tap", v -> add(new Control.Tap("A", 0.5, 0.5, 0.06)));
+        button(add, "+ Stick", v -> add(new Control.Joystick("LS", 0.5, 0.5, 0.12)));
+        button(add, "+ Aim", v -> add(new Control.Aim("RB", "RS", 0.5, 0.5, 0.12)));
+        button(add, "Save", v -> callbacks.save(new Layout(controls)));
+        button(add, "Close", v -> callbacks.close());
+        bar.addView(add);
+        LinearLayout edit = new LinearLayout(context);
+        button(edit, "−", v -> resize(1 / RESIZE_STEP));
+        button(edit, "+", v -> resize(RESIZE_STEP));
+        button(edit, "Delete", v -> delete());
+        bar.addView(edit);
         hint = new TextView(context);
         hint.setTextColor(Color.WHITE);
         hint.setShadowLayer(4, 0, 0, Color.BLACK);
         bar.addView(hint);
         addView(bar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
         updateHint(pkg);
+    }
+
+    /** The display rotated or resized while editing. */
+    void setDisplaySize(int width, int height) {
+        if (width == displayWidth && height == displayHeight) return;
+        displayWidth = width;
+        displayHeight = height;
+        controlsView.invalidate();
     }
 
     /** A pad button the daemon saw pressed while editing. */
@@ -98,6 +108,8 @@ final class EditorView extends FrameLayout {
         Button button = new Button(getContext());
         button.setText(label);
         button.setAllCaps(false);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
         button.setOnClickListener(onClick);
         parent.addView(button);
     }

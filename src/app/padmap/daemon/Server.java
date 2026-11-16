@@ -11,13 +11,19 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** Loopback server for the app; a client that doesn't open with the daemon's token is dropped. */
+/** Loopback server for the app; a client that doesn't present the daemon's token is dropped. */
 final class Server {
+    private static final int MAX_CLIENTS = 8, QUEUE = 256, HELLO_TIMEOUT_MS = 5000;
+
     private final ServerSocket socket;
     private final Engine engine;
+    private final AtomicInteger connected = new AtomicInteger();
 
     /** Binds now, so a second daemon fails fast. */
     Server(Engine engine) throws IOException {
@@ -28,38 +34,43 @@ final class Server {
     void serve() throws IOException {
         while (true) {
             Socket connection = socket.accept();
-            Thread thread = new Thread(new Client(connection), "padmap-client");
-            thread.setDaemon(true);
-            thread.start();
+            if (connected.incrementAndGet() > MAX_CLIENTS) {
+                connected.decrementAndGet();
+                connection.close();
+                continue;
+            }
+            start(new Client(connection)::run, "padmap-client");
         }
     }
 
-    final class Client implements Runnable {
+    private static void start(Runnable task, String name) {
+        Thread thread = new Thread(task, name);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    final class Client {
         private final Socket connection;
-        private Writer out;
+        private final BlockingQueue<String> outgoing = new ArrayBlockingQueue<>(QUEUE);
 
         Client(Socket connection) {
             this.connection = connection;
         }
 
+        /** Queues a message; a client too slow to keep up is dropped rather than stalling the daemon. */
         void send(JSONObject message) {
-            try {
-                synchronized (this) {
-                    out.write(message.toString());
-                    out.write('\n');
-                    out.flush();
-                }
-            } catch (IOException e) {
-                close();
-            }
+            if (!outgoing.offer(message.toString())) close();
         }
 
-        @Override
-        public void run() {
+        void run() {
             boolean attached = false;
             try (Reader in = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
-                out = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8);
+                Writer out = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8);
+                start(() -> write(out), "padmap-client-writer");
+                send(new JSONObject().put("t", "hello").put("proof", Protocol.proof(engine.token())));
+                connection.setSoTimeout(HELLO_TIMEOUT_MS);
                 if (!authenticated(readLine(in))) return;
+                connection.setSoTimeout(0);
                 engine.attach(this);
                 attached = true;
                 for (String line = readLine(in); line != null; line = readLine(in)) {
@@ -69,6 +80,19 @@ final class Server {
                 Log.i("client dropped: " + e.getMessage());
             } finally {
                 if (attached) engine.detach(this);
+                close();
+                connected.decrementAndGet();
+            }
+        }
+
+        private void write(Writer out) {
+            try {
+                while (!connection.isClosed()) {
+                    out.write(outgoing.take());
+                    out.write('\n');
+                    if (outgoing.isEmpty()) out.flush();
+                }
+            } catch (IOException | InterruptedException e) {
                 close();
             }
         }
@@ -87,6 +111,8 @@ final class Server {
             } catch (IOException ignored) {
                 // already closed
             }
+            outgoing.clear();
+            outgoing.offer(""); // wakes the writer, whose write then fails on the closed socket and ends it
         }
     }
 

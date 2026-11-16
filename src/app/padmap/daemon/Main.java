@@ -52,11 +52,24 @@ public final class Main {
 
     /** Follows the focused app and its layout file (picking up saves and hand edits), and keeps the app alive. */
     private static void watch(Engine engine, Store store) {
-        String pkg = null;
-        long modified = -1;
-        Layout layout = Layout.EMPTY;
-        long appStartedAt = 0;
+        Watched watched = new Watched();
         while (true) {
+            try {
+                watched.poll(engine, store);
+            } catch (RuntimeException e) {
+                Log.e("watching the focused app failed", e);
+            }
+            SystemClock.sleep(WATCH_MS);
+        }
+    }
+
+    private static final class Watched {
+        private String pkg;
+        private long modified = -1;
+        private Layout layout = Layout.EMPTY;
+        private long appStartedAt;
+
+        void poll(Engine engine, Store store) {
             String focused = Platform.focusedPackage();
             File file = Store.validPackage(focused) ? store.file(focused) : null;
             long fileModified = file == null ? -1 : file.lastModified();
@@ -72,7 +85,6 @@ public final class Main {
                 Platform.startApp(engine.token(), false);
                 appStartedAt = now;
             }
-            SystemClock.sleep(WATCH_MS);
         }
     }
 

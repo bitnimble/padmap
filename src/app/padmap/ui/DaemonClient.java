@@ -20,10 +20,11 @@ import org.json.JSONObject;
 final class DaemonClient {
     private static final long RETRY_MS = 2000;
 
+    /** Callbacks name their client, so ones still queued from a replaced client can be ignored. */
     interface Listener {
-        void onMessage(JSONObject message);
+        void onMessage(DaemonClient source, JSONObject message);
 
-        void onDisconnected();
+        void onDisconnected(DaemonClient source);
     }
 
     private final String token;
@@ -66,22 +67,27 @@ final class DaemonClient {
         while (running) {
             try (Socket connection = new Socket(InetAddress.getLoopbackAddress(), Protocol.PORT)) {
                 socket = connection;
+                BufferedReader in = new BufferedReader(
+                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
+                String hello = in.readLine();
+                // only the daemon that issued the token can prove it; anything else on the port doesn't get it
+                if (hello == null || !Protocol.proof(token).equals(new JSONObject(hello).optString("proof"))) {
+                    throw new IOException("not our daemon");
+                }
                 Writer writer = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8);
                 writer.write(new JSONObject().put("t", "hello").put("token", token) + "\n");
                 writer.flush();
                 out = writer;
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
                 for (String line = in.readLine(); line != null; line = in.readLine()) {
                     JSONObject message = new JSONObject(line);
-                    main.post(() -> listener.onMessage(message));
+                    main.post(() -> listener.onMessage(this, message));
                 }
             } catch (IOException | JSONException e) {
-                // daemon not running yet, restarted, or rejected a stale token: retry
+                // daemon not running yet, restarted with a new token, or an impostor: retry
             }
             out = null;
             socket = null;
-            main.post(listener::onDisconnected);
+            main.post(() -> listener.onDisconnected(this));
             if (running) android.os.SystemClock.sleep(RETRY_MS);
         }
     }

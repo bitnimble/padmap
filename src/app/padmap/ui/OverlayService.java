@@ -71,13 +71,14 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             if (state != null) openEditor();
             else editWhenConnected = true;
         }
-        return START_STICKY;
+        // not sticky: a background restart can't start a foreground service; the daemon restarts us instead
+        return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        if (client != null) client.stop();
         closeEditor();
+        if (client != null) client.stop();
         showBubble(false);
         super.onDestroy();
     }
@@ -88,19 +89,10 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     }
 
     @Override
-    public void onMessage(JSONObject message) {
+    public void onMessage(DaemonClient source, JSONObject message) {
+        if (source != client) return;
         switch (message.optString("t")) {
-            case "state" -> {
-                state = message;
-                String pkg = focusedPackage();
-                String pad = message.isNull("pad") ? "no gamepad found" : "gamepad " + message.optString("pad");
-                status = "Connected: " + pad + ", focused app " + (pkg == null ? "none" : pkg) + ".";
-                if (editWhenConnected) {
-                    editWhenConnected = false;
-                    openEditor();
-                }
-                showBubble(editor == null && pkg != null && !pkg.equals(getPackageName()));
-            }
+            case "state" -> onState(message);
             case "input" -> {
                 if (editor == null) return;
                 if (message.has("button")) editor.onButton(message.optString("button"));
@@ -110,12 +102,16 @@ public final class OverlayService extends Service implements DaemonClient.Listen
                 if (editor == null) openEditor();
                 else close();
             }
+            case "saved" -> Toast.makeText(this, message.has("error")
+                    ? "Couldn't save the layout: " + message.optString("error")
+                    : "Saved the layout for " + message.optString("package"), Toast.LENGTH_SHORT).show();
             default -> {}
         }
     }
 
     @Override
-    public void onDisconnected() {
+    public void onDisconnected(DaemonClient source) {
+        if (source != client) return;
         state = null;
         status = "Not connected to the Padmap daemon. Start it with the command on Padmap's main screen.";
         closeEditor();
@@ -127,7 +123,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         if (client == null || editing == null) return;
         try {
             client.send(new JSONObject().put("t", "save").put("package", editing).put("layout", LayoutJson.toJson(layout)));
-            Toast.makeText(this, "Saved the layout for " + editing, Toast.LENGTH_SHORT).show();
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
@@ -136,7 +131,35 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     @Override
     public void close() {
         closeEditor();
-        showBubble(focusedPackage() != null);
+        updateBubble();
+    }
+
+    private void onState(JSONObject message) {
+        state = message;
+        String pkg = focusedPackage();
+        String pad = message.isNull("pad") ? "no gamepad found" : "gamepad " + message.optString("pad");
+        status = "Connected: " + pad + ", focused app " + (pkg == null ? "none" : pkg) + ".";
+        if (editor != null) editor.setDisplaySize(message.optInt("width"), message.optInt("height"));
+        if (editWhenConnected) {
+            editWhenConnected = false;
+            openEditor();
+        }
+        updateBubble();
+    }
+
+    /**
+     * Shown over apps the editor can open on, except while the pad is mapping: then Select + Start opens the
+     * editor, and mapped touches can't land on the bubble.
+     */
+    private void updateBubble() {
+        String pkg = focusedPackage();
+        boolean mapping = state != null && !state.isNull("pad") && hasControls();
+        showBubble(editor == null && pkg != null && !pkg.equals(getPackageName()) && !mapping);
+    }
+
+    private boolean hasControls() {
+        JSONObject layout = state.optJSONObject("layout");
+        return layout != null && layout.optJSONArray("controls") != null && layout.optJSONArray("controls").length() > 0;
     }
 
     private void openEditor() {
@@ -150,9 +173,8 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         }
         editing = pkg;
         editor = new EditorView(this, pkg, layout, state.optInt("width"), state.optInt("height"), this);
-        WindowManager.LayoutParams params = overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT);
-        windows.addView(editor, params);
+        windows.addView(editor, overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT));
         showBubble(false);
         sendEditing(true);
     }
