@@ -96,7 +96,7 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             case "state" -> onState(message);
             case "input" -> {
                 if (editor == null) return;
-                if (message.has("button")) editor.onButton(message.optString("button"));
+                if (message.has("buttons")) editor.onButtons(message.optJSONArray("buttons"));
                 if (message.has("stick")) editor.onStick(message.optString("stick"));
             }
             case "toggleEditor" -> {

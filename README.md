@@ -21,9 +21,10 @@ button hides while the gamepad is mapping an app with a layout, so mapped touche
 
 - **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen, already selected (yellow). Drag
   it onto the game's on-screen button.
-- Bind the selected control from the pad. A tap: press its button. A joystick: move its stick. An aim: press its
-  button, then move the stick that aims it (the label shows `LB+?` until you do). Select and Start are kept for
-  the editor's shortcut; bind them by editing the file.
+- Bind the selected control from the pad. A tap: press its button, or hold several buttons together for a chord
+  (`LT+RB`). A joystick: move its stick. An aim: press its button (or a chord), then move the stick that aims it
+  (the label shows `LB+?` until you do). Select and Start are kept for the editor's shortcut; bind them by editing
+  the file.
 - Tap a control to select it again and rebind, move or resize it; **Delete** removes it.
 - **−** / **+** resize the selected control: how far a joystick drags, an aim's reach (for a tap, only how big it
   is in the editor).
@@ -41,7 +42,7 @@ While the editor is open the pad doesn't touch the game.
 
 | Type | Behaviour |
 | --- | --- |
-| `tap` | Touches its spot while the button is held |
+| `tap` | Touches its spot while the button is held. The button may be a chord like `"LT+RB"`: it fires only while every listed button is held, and a chord suppresses any tap or aim on a subset of its buttons (so `A+B` fires instead of a plain `A`) |
 | `joystick` | When the stick leaves its deadzone: touches down at the centre, then drags in the stick's direction, up to `radius` |
 | `aim` | MOBA-style skill: touches down on the skill while the button is held, drags by the stick up to `radius`, lifts (casts) on release. Without the stick it casts in place; with `"fallback": true` the other stick aims while `stick` is centred |
 
@@ -55,6 +56,7 @@ While the editor is open the pad doesn't touch the game.
   "controls": [
     { "type": "joystick", "stick": "LS", "x": 0.16, "y": 0.75, "radius": 0.12 },
     { "type": "tap", "button": "A", "x": 0.88, "y": 0.8, "radius": 0.05 },
+    { "type": "tap", "button": "LT+RB", "x": 0.7, "y": 0.9, "radius": 0.05 },
     { "type": "aim", "button": "RB", "stick": "RS", "fallback": false, "x": 0.75, "y": 0.7, "radius": 0.15 }
   ]
 }
@@ -62,7 +64,7 @@ While the editor is open the pad doesn't touch the game.
 
 `x` and `y` are fractions of the screen's width and height in the game's orientation; `radius` is a fraction of
 the screen height. Buttons: `A B X Y LB RB LT RT SELECT START HOME L3 R3 UP DOWN LEFT RIGHT`, or `KEY_<hex code>`
-for others. Sticks: `LS`, `RS`.
+for others; join two or more with `+` for a chord (`LT+RB`). Sticks: `LS`, `RS`.
 
 ## Vibration
 

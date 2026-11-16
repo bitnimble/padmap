@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -154,11 +155,9 @@ final class Engine {
     }
 
     private void reportInput(PadState previous, PadState next) {
-        for (String button : next.buttons()) {
-            // the chord's keys arrive one frame apart: forwarding the first would rebind the selected control
-            if (button.equals("SELECT") || button.equals("START")) continue;
-            if (!previous.pressed(button)) editor.send(input("button", button));
-        }
+        Set<String> held = editable(next);
+        // the whole held set, so the editor can bind a chord from buttons pressed together (they arrive frame by frame)
+        if (!held.equals(editable(previous))) editor.send(input("buttons", new JSONArray(held)));
         for (String stick : new String[] {"LS", "RS"}) {
             if (next.stick(stick).magnitude() >= STICK_FLICK && previous.stick(stick).magnitude() < STICK_FLICK) {
                 editor.send(input("stick", stick));
@@ -166,9 +165,17 @@ final class Engine {
         }
     }
 
-    private static JSONObject input(String kind, String name) {
+    /** Held buttons the editor may bind: the SELECT+START editor chord is excluded so opening it never binds. */
+    private static Set<String> editable(PadState state) {
+        Set<String> held = new HashSet<>(state.buttons());
+        held.remove("SELECT");
+        held.remove("START");
+        return held;
+    }
+
+    private static JSONObject input(String kind, Object value) {
         try {
-            return message("input").put(kind, name);
+            return message("input").put(kind, value);
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }

@@ -13,11 +13,14 @@ import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import app.padmap.layout.Chord;
 import app.padmap.layout.Control;
 import app.padmap.layout.Layout;
 import app.padmap.layout.LayoutJson;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Full-screen layout editor drawn over the game: drag controls to place them, select one and press a pad button or
@@ -32,6 +35,7 @@ final class EditorView extends FrameLayout {
     private final ControlsView controlsView;
     private final TextView hint;
     private final CheckBox fallback;
+    private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
     private boolean awaitingAimStick;
 
@@ -91,8 +95,17 @@ final class EditorView extends FrameLayout {
         controlsView.invalidate();
     }
 
-    void onButton(String button) {
-        if (selected < 0) return;
+    /** The buttons held this frame; the chord is bound when they are all released, so holding several binds a chord. */
+    void onButtons(org.json.JSONArray held) {
+        if (selected < 0 || held == null) return;
+        if (!(controls.get(selected) instanceof Control.Tap) && !(controls.get(selected) instanceof Control.Aim)) return;
+        for (int i = 0; i < held.length(); i++) gesture.add(held.optString(i));
+        if (held.length() > 0 || gesture.isEmpty()) return;
+        bind(Chord.of(gesture));
+        gesture.clear();
+    }
+
+    private void bind(String button) {
         Control control = controls.get(selected);
         if (control instanceof Control.Tap tap) {
             controls.set(selected, new Control.Tap(button, tap.x(), tap.y(), tap.radius()));
@@ -152,6 +165,7 @@ final class EditorView extends FrameLayout {
     private void select(int index) {
         selected = index;
         awaitingAimStick = false;
+        gesture.clear();
         changed();
     }
 
@@ -175,15 +189,16 @@ final class EditorView extends FrameLayout {
         }
         Control control = controls.get(selected);
         if (control instanceof Control.Tap tap) {
-            hint.setText("Tap on " + tap.button() + ". Press a pad button to change it. Drag to move, −/+ to resize.");
+            hint.setText("Tap on " + tap.button()
+                    + ". Press a button to change it, or hold several together for a chord. Drag to move, −/+ to resize.");
         } else if (control instanceof Control.Joystick joystick) {
             hint.setText("Joystick on " + joystick.stick()
                     + ". Move a stick to change it. Drag to move, −/+ sets how far it drags.");
         } else if (control instanceof Control.Aim aim) {
             hint.setText(awaitingAimStick
                     ? "Aim skill on " + aim.button() + ". Step 2 of 2: move the stick that aims it."
-                    : "Aim skill on " + aim.button() + " + " + aim.stick()
-                            + ". To change it, step 1 of 2: press its button. Drag to move, −/+ sets aim distance.");
+                    : "Aim skill on " + aim.button() + " + " + aim.stick() + ". To change it, step 1 of 2: press its "
+                            + "button (or hold a chord). Drag to move, −/+ sets aim distance.");
         }
     }
 

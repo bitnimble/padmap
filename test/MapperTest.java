@@ -38,11 +38,32 @@ public final class MapperTest {
         check(contacts(Set.of("LB"), new Stick(0, 1), new Stick(-1, 0)),
                 List.of(new Contact(0, 0.2, 0.7, 0.2, 0.8), new Contact(3, 0.6, 0.4, 0.55, 0.4)),
                 "fallback aim prefers its own stick when moved");
+        chords();
         System.out.println("MapperTest: all passed");
+    }
+
+    private static void chords() {
+        Layout layout = new Layout(List.of(
+                new Control.Tap("LT", 0.1, 0.1, 0.05),
+                new Control.Tap("LT+RB", 0.2, 0.2, 0.05),
+                new Control.Tap("RB", 0.3, 0.3, 0.05)));
+        check(contacts(layout, Set.of("LT")),
+                List.of(new Contact(0, 0.1, 0.1, 0.1, 0.1)), "one held button fires only its own tap");
+        check(contacts(layout, Set.of("LT", "RB")),
+                List.of(new Contact(1, 0.2, 0.2, 0.2, 0.2)),
+                "a held chord fires and shadows both single-button taps it covers");
+        check(contacts(layout, Set.of("RB", "X")),
+                List.of(new Contact(2, 0.3, 0.3, 0.3, 0.3)), "an unrelated extra button doesn't shadow a single tap");
+        check(contacts(new Layout(List.of(new Control.Tap("RB+LT", 0.4, 0.4, 0.05))), Set.of("LT", "RB")),
+                List.of(new Contact(0, 0.4, 0.4, 0.4, 0.4)), "chord button order doesn't matter");
     }
 
     private static List<Contact> contacts(Set<String> buttons, Stick left, Stick right) {
         return Mapper.contacts(LAYOUT, new PadState(buttons, left, right), 2.0);
+    }
+
+    private static List<Contact> contacts(Layout layout, Set<String> buttons) {
+        return Mapper.contacts(layout, new PadState(buttons, Stick.CENTRE, Stick.CENTRE), 2.0);
     }
 
     private static void check(List<Contact> actual, List<Contact> expected, String what) {

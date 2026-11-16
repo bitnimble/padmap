@@ -10,8 +10,8 @@ import org.json.JSONObject;
 /** The layout file format: {"version": 1, "controls": [{"type": "tap"|"joystick"|"aim", …}]}. */
 public final class LayoutJson {
     public static final int VERSION = 1;
-    private static final Pattern BUTTON =
-            Pattern.compile("A|B|X|Y|LB|RB|LT|RT|SELECT|START|HOME|L3|R3|UP|DOWN|LEFT|RIGHT|KEY_[0-9A-F]+");
+    private static final String SINGLE = "A|B|X|Y|LB|RB|LT|RT|SELECT|START|HOME|L3|R3|UP|DOWN|LEFT|RIGHT|KEY_[0-9A-F]+";
+    private static final Pattern BUTTON = Pattern.compile("(" + SINGLE + ")(\\+(" + SINGLE + "))*");
 
     private LayoutJson() {}
 
