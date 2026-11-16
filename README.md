@@ -19,11 +19,16 @@ injection, the same way scrcpy and Shizuku work.
 Press **Select + Start** on the gamepad, or tap the floating ✥ button, to open the editor over the game. The
 button hides while the gamepad is mapping an app with a layout, so mapped touches can't land on it.
 
-- **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen; drag controls into place.
-- Select a control, then press the pad button or move the stick it should use. An aim control takes its button
-  first, then its stick.
+- **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen, already selected (yellow). Drag
+  it onto the game's on-screen button.
+- Bind the selected control from the pad. A tap: press its button. A joystick: move its stick. An aim: press its
+  button, then move the stick that aims it (the label shows `LB+?` until you do).
+- Tap a control to select it again and rebind, move or resize it.
 - **−** / **+** resize the selected control: a tap's size, how far a joystick drags, an aim's reach.
 - **Save** writes the layout; **Close** (or Select + Start) returns to the game.
+
+For example, an aim skill on LB aimed with the right stick: **+ Aim**, drag it onto the skill, press **LB**, push
+the **right stick**, **Save**.
 
 While the editor is open the pad doesn't touch the game.
 

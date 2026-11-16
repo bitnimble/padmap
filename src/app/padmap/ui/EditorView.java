@@ -148,26 +148,30 @@ final class EditorView extends FrameLayout {
     private void updateHint(String pkg) {
         if (selected < 0) {
             hint.setText((pkg != null ? "Editing " + pkg + ". " : "")
-                    + "Add a control or tap one to select it. Select + Start on the pad closes the editor.");
+                    + "Add a control, or tap one to change it. Select + Start closes the editor.");
             return;
         }
         Control control = controls.get(selected);
         if (control instanceof Control.Tap tap) {
-            hint.setText("Tap on " + tap.button() + ": press a pad button to rebind, drag to move.");
+            hint.setText("Tap on " + tap.button() + ". Press a pad button to change it. Drag to move, −/+ to resize.");
         } else if (control instanceof Control.Joystick joystick) {
-            hint.setText("Joystick on " + joystick.stick() + ": move a stick to rebind, −/+ sets how far it drags.");
+            hint.setText("Joystick on " + joystick.stick()
+                    + ". Move a stick to change it. Drag to move, −/+ sets how far it drags.");
         } else if (control instanceof Control.Aim aim) {
             hint.setText(awaitingAimStick
-                    ? "Now move the stick that aims it."
+                    ? "Aim skill on " + aim.button() + ". Step 2 of 2: move the stick that aims it."
                     : "Aim skill on " + aim.button() + " + " + aim.stick()
-                            + ": press its button, then move its aim stick; −/+ sets the aim distance.");
+                            + ". To change it, step 1 of 2: press its button. Drag to move, −/+ sets aim distance.");
         }
     }
 
-    private static String label(Control control) {
+    private String label(int index) {
+        Control control = controls.get(index);
         if (control instanceof Control.Tap tap) return tap.button();
         if (control instanceof Control.Joystick joystick) return joystick.stick();
-        if (control instanceof Control.Aim aim) return aim.button() + "+" + aim.stick();
+        if (control instanceof Control.Aim aim) {
+            return aim.button() + "+" + (awaitingAimStick && index == selected ? "?" : aim.stick());
+        }
         return "?";
     }
 
@@ -206,7 +210,7 @@ final class EditorView extends FrameLayout {
                 }
                 canvas.drawCircle(x, y, radius, stroke);
                 stroke.setPathEffect(null);
-                canvas.drawText(label(control), x, y + text.getTextSize() / 3, text);
+                canvas.drawText(label(i), x, y + text.getTextSize() / 3, text);
             }
         }
 
