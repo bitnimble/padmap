@@ -35,13 +35,12 @@ final class EditorView extends FrameLayout {
     private final EditorTheme theme;
     private final ControlsView controlsView;
     private final LinearLayout editTools;
-    private final TextView hint;
     private final CheckBox fallback;
     private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
     private boolean awaitingAimStick;
 
-    EditorView(Context context, String pkg, Layout layout, int displayWidth, int displayHeight, Runnable close) {
+    EditorView(Context context, Layout layout, int displayWidth, int displayHeight, Runnable close) {
         super(context);
         this.original = layout;
         this.controls = new ArrayList<>(layout.controls());
@@ -62,8 +61,8 @@ final class EditorView extends FrameLayout {
         LinearLayout.LayoutParams rule = new LinearLayout.LayoutParams(theme.dp(1), theme.dp(32));
         rule.setMargins(theme.dp(8), 0, theme.dp(8), 0);
         editTools.addView(theme.divider(context), rule);
-        button(editTools, "−", EditorTheme.Tone.NORMAL, v -> resize(1 / RESIZE_STEP));
-        button(editTools, "+", EditorTheme.Tone.NORMAL, v -> resize(RESIZE_STEP));
+        button(editTools, "Smaller", EditorTheme.Tone.NORMAL, v -> resize(1 / RESIZE_STEP));
+        button(editTools, "Larger", EditorTheme.Tone.NORMAL, v -> resize(RESIZE_STEP));
         button(editTools, "Delete", EditorTheme.Tone.DANGER, v -> delete());
         row.addView(editTools);
         row.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1));
@@ -76,11 +75,6 @@ final class EditorView extends FrameLayout {
         fallback.setButtonTintList(new ColorStateList(new int[][] {{android.R.attr.state_checked}, {}},
                 new int[] {EditorTheme.SELECTED, EditorTheme.TEXT_DIM}));
         fallback.setOnClickListener(v -> setFallback(fallback.isChecked()));
-        hint = new TextView(context);
-        hint.setTextColor(EditorTheme.TEXT_DIM);
-        hint.setTextSize(18);
-        hint.setLineSpacing(0, 1.15f);
-        hint.setPadding(theme.dp(4), 0, theme.dp(4), 0);
 
         LinearLayout panel = new LinearLayout(context);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -90,12 +84,11 @@ final class EditorView extends FrameLayout {
         panel.setPadding(pad, pad, pad, pad);
         panel.addView(row, fullWidth(0));
         panel.addView(fallback, fullWidth(theme.dp(8)));
-        panel.addView(hint, fullWidth(theme.dp(10)));
         int width = Math.min(theme.dp(820), (int) (getResources().getDisplayMetrics().widthPixels * 0.92f));
         LayoutParams top = new LayoutParams(width, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         top.topMargin = theme.dp(12);
         addView(panel, top);
-        updateHint(pkg);
+        updateTools();
     }
 
     /** The edited layout, or null if nothing changed. */
@@ -194,37 +187,18 @@ final class EditorView extends FrameLayout {
     }
 
     private void changed() {
-        updateHint(null);
+        updateTools();
         controlsView.invalidate();
     }
 
-    private void updateHint(String pkg) {
+    private void updateTools() {
         editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);
-        if (selectedAim != null) {
-            String other = selectedAim.stick().equals("LS") ? "RS" : "LS";
-            fallback.setText("Aim with " + other + " while " + selectedAim.stick() + " is centred");
-            fallback.setChecked(selectedAim.fallback());
-        }
-        if (selected < 0) {
-            hint.setText((pkg != null ? "Editing " + pkg + ". " : "")
-                    + "Add a control, or tap one to change it. Done or Select + Start saves and returns to the game.");
-            return;
-        }
-        Control control = controls.get(selected);
-        if (control instanceof Control.Tap tap) {
-            hint.setText("Tap on " + tap.button()
-                    + ". Press a button to change it, or hold several together for a chord. Drag to move, −/+ to resize.");
-        } else if (control instanceof Control.Joystick joystick) {
-            hint.setText("Joystick on " + joystick.stick()
-                    + ". Move a stick to change it. Drag to move, −/+ sets how far it drags.");
-        } else if (control instanceof Control.Aim aim) {
-            hint.setText(awaitingAimStick
-                    ? "Aim skill on " + aim.button() + ". Step 2 of 2: move the stick that aims it."
-                    : "Aim skill on " + aim.button() + " + " + aim.stick() + ". To change it, step 1 of 2: press its "
-                            + "button (or hold a chord). Drag to move, −/+ sets aim distance.");
-        }
+        if (selectedAim == null) return;
+        String other = selectedAim.stick().equals("LS") ? "RS" : "LS";
+        fallback.setText("Aim with " + other + " when " + selectedAim.stick() + " is idle");
+        fallback.setChecked(selectedAim.fallback());
     }
 
     private String label(int index) {

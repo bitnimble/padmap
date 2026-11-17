@@ -24,12 +24,12 @@ Press **Select + Start** on the gamepad to open the editor over the game.
   (`LT+RB`). A joystick: move its stick. An aim: press its button (or a chord), then move the stick that aims it
   (the label shows `LB+?` until you do). Select and Start are kept for the editor's shortcut; bind them by editing
   the file.
-- Tap a control to select it again and rebind, move or resize it; **Delete** removes it. The **−**, **+** and
-  **Delete** buttons appear while a control is selected.
-- **−** / **+** resize the selected control: how far a joystick drags, an aim's reach (for a tap, only how big it
-  is in the editor).
-- A selected aim has a checkbox, **Aim with LS while RS is centred** (off by default): the other stick aims the
-  skill while its own stick is untouched.
+- Tap a control to select it again and rebind, move or resize it; **Delete** removes it. The **Smaller**,
+  **Larger** and **Delete** buttons appear while a control is selected.
+- **Smaller** / **Larger** resize the selected control: how far a joystick drags, an aim's reach (for a tap, only
+  how big it is in the editor).
+- A selected aim has a checkbox, **Aim with LS when RS is idle** (off by default): the other stick aims the skill
+  while its own stick is untouched.
 - **Done** (or Select + Start) saves any changes and returns to the game; a message confirms the save or says
   why it failed. If the daemon stops while the editor is open, unsaved changes are lost.
 
