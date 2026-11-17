@@ -66,6 +66,7 @@ final class EditorView extends FrameLayout {
         button(edit, "Delete", v -> delete());
         fallback = new CheckBox(context);
         fallback.setTextColor(Color.WHITE);
+        fallback.setTextSize(18);
         fallback.setButtonTintList(ColorStateList.valueOf(Color.WHITE));
         fallback.setShadowLayer(4, 0, 0, Color.BLACK);
         fallback.setOnClickListener(v -> setFallback(fallback.isChecked()));
@@ -73,6 +74,7 @@ final class EditorView extends FrameLayout {
         bar.addView(edit);
         hint = new TextView(context);
         hint.setTextColor(Color.WHITE);
+        hint.setTextSize(18);
         hint.setShadowLayer(4, 0, 0, Color.BLACK);
         bar.addView(hint);
         addView(bar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,
@@ -132,6 +134,7 @@ final class EditorView extends FrameLayout {
         Button button = new Button(getContext());
         button.setText(label);
         button.setAllCaps(false);
+        button.setTextSize(20);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setOnClickListener(onClick);
