@@ -222,7 +222,7 @@ final class EditorView extends FrameLayout {
     private void chooseSet() {
         PopupMenu menu = new PopupMenu(getContext(), setMenu);
         for (int i = 0; i < sets.size(); i++) {
-            menu.getMenu().add(0, i, 0, setName(i)).setCheckable(true).setChecked(i == current);
+            menu.getMenu().add(0, i, 0, setName(i));
         }
         menu.setOnMenuItemClickListener(item -> {
             showSet(item.getItemId());
