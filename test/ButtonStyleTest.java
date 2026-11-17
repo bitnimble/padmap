@@ -15,6 +15,9 @@ public final class ButtonStyleTest {
         check(ButtonStyle.XBOX.label(Button.HOME).equals("Guide"), "Xbox home is Guide");
         check(ButtonStyle.PLAYSTATION.label(Button.HOME).equals("PS"), "PlayStation home is PS");
         check(ButtonStyle.NINTENDO.label(Button.HOME).equals("HOME"), "Nintendo home is the house");
+        check(ButtonStyle.XBOX.label(Button.START).equals("Menu"), "Xbox start is Menu");
+        check(ButtonStyle.NINTENDO.label(Button.SELECT).equals("−"), "Nintendo select is minus");
+        check(ButtonStyle.PLAYSTATION.label(Button.START).equals("Options"), "PlayStation start is Options");
         for (ButtonStyle style : ButtonStyle.values()) {
             for (Button face : new Button[] {Button.A, Button.B, Button.X, Button.Y}) style.faceColour(face);
         }
