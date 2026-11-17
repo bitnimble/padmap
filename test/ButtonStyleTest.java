@@ -18,6 +18,9 @@ public final class ButtonStyleTest {
         check(ButtonStyle.XBOX.label(Button.START).equals("Menu"), "Xbox start is Menu");
         check(ButtonStyle.NINTENDO.label(Button.SELECT).equals("−"), "Nintendo select is minus");
         check(ButtonStyle.PLAYSTATION.label(Button.START).equals("Options"), "PlayStation start is Options");
+        check(ButtonStyle.STEAM.label(Button.A).equals("A"), "Steam south is A");
+        check(ButtonStyle.STEAM.label(Button.LT).equals("L2"), "Steam left trigger is L2");
+        check(ButtonStyle.STEAM.label(Button.HOME).equals("Steam"), "Steam home is the Steam button");
         for (ButtonStyle style : ButtonStyle.values()) {
             for (Button face : new Button[] {Button.A, Button.B, Button.X, Button.Y}) style.faceColour(face);
         }

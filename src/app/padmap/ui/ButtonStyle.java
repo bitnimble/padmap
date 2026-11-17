@@ -26,7 +26,9 @@ enum ButtonStyle {
     PLAYSTATION("PlayStation", Map.ofEntries(entry(A, "✕"), entry(B, "○"), entry(X, "□"), entry(Y, "△"),
             entry(LB, "L1"), entry(RB, "R1"), entry(LT, "L2"), entry(RT, "R2"), entry(SELECT, "Create"),
             entry(START, "Options"), entry(HOME, "PS")),
-            Map.of(A, 0xFF7CB2E8, B, 0xFFFF6B6B, X, 0xFFE58FD0, Y, 0xFF40C9A2));
+            Map.of(A, 0xFF7CB2E8, B, 0xFFFF6B6B, X, 0xFFE58FD0, Y, 0xFF40C9A2)),
+    STEAM("Steam", Map.of(LB, "L1", RB, "R1", LT, "L2", RT, "R2", SELECT, "View", START, "Menu", HOME, "Steam"),
+            Map.of(A, 0xFFC9D1D9, B, 0xFFC9D1D9, X, 0xFFC9D1D9, Y, 0xFFC9D1D9));
 
     final String title;
     private final Map<Button, String> labels;
