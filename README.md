@@ -16,8 +16,7 @@ injection, the same way scrcpy and Shizuku work.
 
 ## Editing a layout
 
-Press **Select + Start** on the gamepad, or tap the floating ✥ button, to open the editor over the game. The
-button hides while the gamepad is mapping an app with a layout, so mapped touches can't land on it.
+Press **Select + Start** on the gamepad to open the editor over the game.
 
 - **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen, already selected (yellow). Drag
   it onto the game's on-screen button.
@@ -25,16 +24,17 @@ button hides while the gamepad is mapping an app with a layout, so mapped touche
   (`LT+RB`). A joystick: move its stick. An aim: press its button (or a chord), then move the stick that aims it
   (the label shows `LB+?` until you do). Select and Start are kept for the editor's shortcut; bind them by editing
   the file.
-- Tap a control to select it again and rebind, move or resize it; **Delete** removes it.
+- Tap a control to select it again and rebind, move or resize it; **Delete** removes it. The **−**, **+** and
+  **Delete** buttons appear while a control is selected.
 - **−** / **+** resize the selected control: how far a joystick drags, an aim's reach (for a tap, only how big it
   is in the editor).
 - A selected aim has a checkbox, **Aim with LS while RS is centred** (off by default): the other stick aims the
   skill while its own stick is untouched.
-- **Close** (or Select + Start) saves any changes and returns to the game; a message confirms the save or says
+- **Done** (or Select + Start) saves any changes and returns to the game; a message confirms the save or says
   why it failed. If the daemon stops while the editor is open, unsaved changes are lost.
 
 For example, an aim skill on LB aimed with the right stick: **+ Aim**, drag it onto the skill, press **LB**, push
-the **right stick**, **Close**.
+the **right stick**, **Done**.
 
 While the editor is open the pad doesn't touch the game.
 
@@ -98,7 +98,7 @@ The APK holds both halves. The daemon (`app.padmap.daemon.Main`) runs from the A
 shell user or root, which may inject input: it reads the pad from evdev (`/dev/input`, grabbed while mapping),
 maps it through the focused app's layout and injects multi-touch `MotionEvent`s. Each touch lands at its
 anchor, holds for a few frames and then ramps to its target, so games that sample touches per frame see where a
-drag started. The app (`app.padmap.ui`) is the overlay: the bubble, the editor and setup screen. They talk over
+drag started. The app (`app.padmap.ui`) is the overlay: the editor and setup screen. They talk over
 a loopback socket: the daemon hands the app a fresh token through `am start-foreground-service` (the service
 requires `INJECT_EVENTS`, which only shell and root hold), opens each connection by proving it knows the token,
 and drops clients that don't present it.

@@ -4,11 +4,11 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -32,7 +32,9 @@ final class EditorView extends FrameLayout {
     private final Layout original;
     private final List<Control> controls;
     private int displayWidth, displayHeight;
+    private final EditorTheme theme;
     private final ControlsView controlsView;
+    private final LinearLayout editTools;
     private final TextView hint;
     private final CheckBox fallback;
     private final Set<String> gesture = new LinkedHashSet<>();
@@ -45,40 +47,54 @@ final class EditorView extends FrameLayout {
         this.controls = new ArrayList<>(layout.controls());
         this.displayWidth = displayWidth;
         this.displayHeight = displayHeight;
-        setBackgroundColor(Color.argb(90, 0, 0, 0));
+        theme = new EditorTheme(context);
+        setBackgroundColor(EditorTheme.SCRIM);
         controlsView = new ControlsView(context);
         addView(controlsView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
-        LinearLayout bar = new LinearLayout(context);
-        bar.setOrientation(LinearLayout.VERTICAL);
-        bar.setGravity(Gravity.CENTER_HORIZONTAL);
-        LinearLayout add = new LinearLayout(context);
-        add.setGravity(Gravity.CENTER_HORIZONTAL);
-        button(add, "+ Tap", v -> add(new Control.Tap("A", 0.5, 0.5, 0.06)));
-        button(add, "+ Stick", v -> add(new Control.Joystick("LS", 0.5, 0.5, 0.12)));
-        button(add, "+ Aim", v -> add(new Control.Aim("RB", "RS", false, 0.5, 0.5, 0.12)));
-        button(add, "Close", v -> close.run());
-        bar.addView(add);
-        LinearLayout edit = new LinearLayout(context);
-        edit.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
-        button(edit, "−", v -> resize(1 / RESIZE_STEP));
-        button(edit, "+", v -> resize(RESIZE_STEP));
-        button(edit, "Delete", v -> delete());
+        LinearLayout row = new LinearLayout(context);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        button(row, "+ Tap", EditorTheme.Tone.NORMAL, v -> add(new Control.Tap("A", 0.5, 0.5, 0.06)));
+        button(row, "+ Stick", EditorTheme.Tone.NORMAL, v -> add(new Control.Joystick("LS", 0.5, 0.5, 0.12)));
+        button(row, "+ Aim", EditorTheme.Tone.NORMAL, v -> add(new Control.Aim("RB", "RS", false, 0.5, 0.5, 0.12)));
+        editTools = new LinearLayout(context);
+        editTools.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rule = new LinearLayout.LayoutParams(theme.dp(1), theme.dp(32));
+        rule.setMargins(theme.dp(8), 0, theme.dp(8), 0);
+        editTools.addView(theme.divider(context), rule);
+        button(editTools, "−", EditorTheme.Tone.NORMAL, v -> resize(1 / RESIZE_STEP));
+        button(editTools, "+", EditorTheme.Tone.NORMAL, v -> resize(RESIZE_STEP));
+        button(editTools, "Delete", EditorTheme.Tone.DANGER, v -> delete());
+        row.addView(editTools);
+        row.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1));
+        button(row, "Done", EditorTheme.Tone.PRIMARY, v -> close.run());
+
         fallback = new CheckBox(context);
-        fallback.setTextColor(Color.WHITE);
+        fallback.setTextColor(EditorTheme.TEXT);
         fallback.setTextSize(18);
-        fallback.setButtonTintList(ColorStateList.valueOf(Color.WHITE));
-        fallback.setShadowLayer(4, 0, 0, Color.BLACK);
+        fallback.setTypeface(EditorTheme.LABEL);
+        fallback.setButtonTintList(new ColorStateList(new int[][] {{android.R.attr.state_checked}, {}},
+                new int[] {EditorTheme.SELECTED, EditorTheme.TEXT_DIM}));
         fallback.setOnClickListener(v -> setFallback(fallback.isChecked()));
-        edit.addView(fallback);
-        bar.addView(edit);
         hint = new TextView(context);
-        hint.setTextColor(Color.WHITE);
+        hint.setTextColor(EditorTheme.TEXT_DIM);
         hint.setTextSize(18);
-        hint.setShadowLayer(4, 0, 0, Color.BLACK);
-        bar.addView(hint);
-        addView(bar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,
-                Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        hint.setLineSpacing(0, 1.15f);
+        hint.setPadding(theme.dp(4), 0, theme.dp(4), 0);
+
+        LinearLayout panel = new LinearLayout(context);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackground(theme.panel());
+        panel.setElevation(theme.dp(8));
+        int pad = theme.dp(12);
+        panel.setPadding(pad, pad, pad, pad);
+        panel.addView(row, fullWidth(0));
+        panel.addView(fallback, fullWidth(theme.dp(8)));
+        panel.addView(hint, fullWidth(theme.dp(10)));
+        int width = Math.min(theme.dp(820), (int) (getResources().getDisplayMetrics().widthPixels * 0.92f));
+        LayoutParams top = new LayoutParams(width, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        top.topMargin = theme.dp(12);
+        addView(panel, top);
         updateHint(pkg);
     }
 
@@ -130,15 +146,20 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
-    private void button(LinearLayout parent, String label, View.OnClickListener onClick) {
-        Button button = new Button(getContext());
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setTextSize(20);
-        button.setMinWidth(0);
-        button.setMinimumWidth(0);
+    private void button(LinearLayout parent, String label, EditorTheme.Tone tone, View.OnClickListener onClick) {
+        TextView button = theme.button(getContext(), label, tone);
         button.setOnClickListener(onClick);
-        parent.addView(button);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(theme.dp(4), 0, theme.dp(4), 0);
+        parent.addView(button, params);
+    }
+
+    private static LinearLayout.LayoutParams fullWidth(int topMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.topMargin = topMargin;
+        return params;
     }
 
     private void add(Control control) {
@@ -178,6 +199,7 @@ final class EditorView extends FrameLayout {
     }
 
     private void updateHint(String pkg) {
+        editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);
         if (selectedAim != null) {
@@ -187,7 +209,7 @@ final class EditorView extends FrameLayout {
         }
         if (selected < 0) {
             hint.setText((pkg != null ? "Editing " + pkg + ". " : "")
-                    + "Add a control, or tap one to change it. Close or Select + Start saves and returns to the game.");
+                    + "Add a control, or tap one to change it. Done or Select + Start saves and returns to the game.");
             return;
         }
         Control control = controls.get(selected);
@@ -218,7 +240,7 @@ final class EditorView extends FrameLayout {
     private final class ControlsView extends View {
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final DashPathEffect dash = new DashPathEffect(new float[] {theme.dp(10), theme.dp(8)}, 0);
         private final int[] origin = new int[2];
         private float grabDx, grabDy;
         private boolean dragging;
@@ -226,31 +248,33 @@ final class EditorView extends FrameLayout {
         ControlsView(Context context) {
             super(context);
             stroke.setStyle(Paint.Style.STROKE);
-            stroke.setStrokeWidth(4);
-            text.setColor(Color.WHITE);
-            text.setTextAlign(Paint.Align.CENTER);
-            text.setShadowLayer(4, 0, 0, Color.BLACK);
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
             getLocationOnScreen(origin);
-            text.setTextSize(displayHeight * 0.03f);
+            float glyph = Math.max(theme.dp(24), displayHeight * 0.042f);
             for (int i = 0; i < controls.size(); i++) {
                 Control control = controls.get(i);
+                boolean on = i == selected;
                 float x = screenX(control) - origin[0], y = screenY(control) - origin[1];
                 float radius = (float) (control.radius() * displayHeight);
-                fill.setColor(Color.argb(i == selected ? 110 : 70, 255, 255, 255));
-                stroke.setColor(i == selected ? Color.YELLOW : Color.WHITE);
+                stroke.setColor(on ? EditorTheme.SELECTED : Color.argb(210, 255, 255, 255));
+                stroke.setStrokeWidth(theme.dp(on ? 4 : 2.5f));
                 if (control instanceof Control.Tap) {
+                    fill.setColor(on ? Color.argb(70, 255, 182, 39) : Color.argb(45, 255, 255, 255));
                     canvas.drawCircle(x, y, radius, fill);
+                    canvas.drawCircle(x, y, radius, stroke);
                 } else {
-                    canvas.drawCircle(x, y, Math.min(radius, displayHeight * 0.05f), fill);
-                    stroke.setPathEffect(new android.graphics.DashPathEffect(new float[] {16, 12}, 0));
+                    stroke.setPathEffect(dash);
+                    canvas.drawCircle(x, y, radius, stroke);
+                    stroke.setPathEffect(null);
+                    float knob = Math.min(radius, displayHeight * 0.05f);
+                    fill.setColor(EditorTheme.KNOB);
+                    canvas.drawCircle(x, y, knob, fill);
+                    canvas.drawCircle(x, y, knob, stroke);
                 }
-                canvas.drawCircle(x, y, radius, stroke);
-                stroke.setPathEffect(null);
-                canvas.drawText(label(i), x, y + text.getTextSize() / 3, text);
+                theme.drawBinding(canvas, Chord.parts(label(i)), x, y, glyph);
             }
         }
 
