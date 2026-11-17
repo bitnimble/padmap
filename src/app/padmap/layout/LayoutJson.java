@@ -27,7 +27,7 @@ public final class LayoutJson {
         List<Layout.MappingSet> sets = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
             JSONObject set = array.getJSONObject(i);
-            sets.add(new Layout.MappingSet(set.has("chord") ? button(set, "chord") : null, controls(set)));
+            sets.add(new Layout.MappingSet(set.isNull("chord") ? null : button(set, "chord"), controls(set)));
         }
         return new Layout(sets);
     }

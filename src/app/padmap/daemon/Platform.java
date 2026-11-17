@@ -128,12 +128,16 @@ final class Platform {
     }
 
     static void grantPermissions() {
+        grant("the overlay permission", "appops", "set", Protocol.PACKAGE, "SYSTEM_ALERT_WINDOW", "allow");
+        // without it Android drops the app's toasts while the game has the foreground
+        grant("the notification permission", "pm", "grant", Protocol.PACKAGE, "android.permission.POST_NOTIFICATIONS");
+    }
+
+    private static void grant(String what, String... command) {
         try {
-            exec("appops", "set", Protocol.PACKAGE, "SYSTEM_ALERT_WINDOW", "allow");
-            // without it Android drops the app's toasts while the game has the foreground
-            exec("pm", "grant", Protocol.PACKAGE, "android.permission.POST_NOTIFICATIONS");
+            exec(command);
         } catch (IOException e) {
-            Log.e("granting the overlay and notification permissions failed", e);
+            Log.e("granting " + what + " failed", e);
         }
     }
 
