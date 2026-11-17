@@ -38,7 +38,7 @@ final class EditorTheme {
     private static final int STICK_RIM = Color.rgb(170, 178, 188);
     private static final Typeface GLYPH = Typeface.create("sans-serif-condensed", Typeface.BOLD);
     private static final float CHIP_TEXT = 0.62f, FACE_TEXT = 0.55f, TRIGGER_TEXT = 0.5f, STICK_TEXT = 0.42f;
-    private static final float MENU_HEIGHT = 0.62f, MENU_TEXT = 0.36f;
+    private static final float MENU_HEIGHT = 0.62f, MENU_TEXT = 0.36f, HOME_TEXT = 0.42f;
 
     enum Tone { NORMAL, PRIMARY, DANGER }
 
@@ -144,7 +144,7 @@ final class EditorTheme {
     private float width(Glyph glyph, float h) {
         return switch (glyph.shape()) {
             case FACE, DPAD, STICK, PRESSED_STICK -> h;
-            case HOME -> h * 0.8f;
+            case HOME -> isHouse(glyph) ? h * 0.8f : Math.max(h * 0.8f, labelWidth(glyph.label(), h * HOME_TEXT) + h * 0.4f);
             case TRIGGER -> Math.max(h * 0.8f, labelWidth(glyph.label(), h * TRIGGER_TEXT) + h * 0.4f);
             case MENU -> labelWidth(glyph.label(), h * MENU_TEXT) + h * 0.5f;
             case BUMPER, KEY, UNBOUND -> Math.max(h, labelWidth(glyph.label(), h * CHIP_TEXT) + h * 0.7f);
@@ -166,7 +166,7 @@ final class EditorTheme {
             case TRIGGER -> drawTrigger(canvas, glyph.label(), h);
             case STICK -> drawStick(canvas, glyph.label(), false, cx, cy, h);
             case PRESSED_STICK -> drawStick(canvas, glyph.label(), true, cx, cy, h);
-            case HOME -> drawHome(canvas, cx, cy, h);
+            case HOME -> drawHome(canvas, glyph, cx, cy, h);
             case UNBOUND -> drawUnbound(canvas, h);
         }
     }
@@ -261,12 +261,23 @@ final class EditorTheme {
         drawLabel(canvas, label, cx, cy, h * STICK_TEXT, Color.WHITE);
     }
 
-    private void drawHome(Canvas canvas, float cx, float cy, float h) {
+    /** Nintendo's Home button keeps the binding name and is drawn as a house; the others are labelled. */
+    private static boolean isHouse(Glyph glyph) {
+        return glyph.label().equals(Button.HOME.name());
+    }
+
+    private void drawHome(Canvas canvas, Glyph glyph, float cx, float cy, float h) {
+        float radius = h * 0.4f;
+        box.inset(0, h * 0.1f);
         fill.setColor(NEUTRAL);
-        canvas.drawCircle(cx, cy, h * 0.4f, fill);
+        canvas.drawRoundRect(box, radius, radius, fill);
         line.setColor(OUTLINE);
         line.setStrokeWidth(dp(1.5f));
-        canvas.drawCircle(cx, cy, h * 0.4f, line);
+        canvas.drawRoundRect(box, radius, radius, line);
+        if (!isHouse(glyph)) {
+            drawLabel(canvas, glyph.label(), cx, cy, h * HOME_TEXT, TEXT);
+            return;
+        }
         path.reset();
         path.moveTo(cx, cy - h * 0.22f);
         path.lineTo(cx + h * 0.22f, cy - h * 0.02f);

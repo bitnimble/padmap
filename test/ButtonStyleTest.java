@@ -12,6 +12,9 @@ public final class ButtonStyleTest {
         check(ButtonStyle.PLAYSTATION.label(Button.X).equals("□"), "PlayStation west is square");
         check(ButtonStyle.PLAYSTATION.label(Button.RB).equals("R1"), "PlayStation right bumper is R1");
         check(ButtonStyle.PLAYSTATION.label(Button.UP).equals("UP"), "unstyled buttons keep their names");
+        check(ButtonStyle.XBOX.label(Button.HOME).equals("Guide"), "Xbox home is Guide");
+        check(ButtonStyle.PLAYSTATION.label(Button.HOME).equals("PS"), "PlayStation home is PS");
+        check(ButtonStyle.NINTENDO.label(Button.HOME).equals("HOME"), "Nintendo home is the house");
         for (ButtonStyle style : ButtonStyle.values()) {
             for (Button face : new Button[] {Button.A, Button.B, Button.X, Button.Y}) style.faceColour(face);
         }
