@@ -42,8 +42,9 @@ the **right stick**, **Done**.
 ### Mapping sets
 
 A game can have several mapping sets, e.g. one for walking and one for driving; the editor shows one at a time.
-The **Set 1 of 2 ▾** menu switches between them, makes a **New set** (a copy of the shown one), sets the chord
-that switches to the shown set (hold its buttons on the pad, then let go) and deletes a set.
+The **Set 1 ▾** dropdown picks the shown set. **Duplicate** copies it into a new set, **Set activation chord**
+binds the chord that switches to it (hold its buttons on the pad, then let go; the chord shows beside the
+button) and **Delete set** removes it.
 
 While playing, the first set is active. Pressing a set's chord switches to it and a message names the set;
 pressing the active set's chord again returns to the first set. The chord's buttons don't touch the game until

@@ -8,7 +8,6 @@ import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.view.Gravity;
-import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.CheckBox;
@@ -16,6 +15,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
+import android.widget.Toast;
 import app.padmap.layout.Button;
 import app.padmap.layout.Chord;
 import app.padmap.layout.Control;
@@ -45,7 +45,7 @@ final class EditorView extends FrameLayout {
     private final EditorTheme theme;
     private final ControlsView controlsView;
     private final LinearLayout editTools;
-    private final TextView styleMenu, setMenu, hint;
+    private final TextView styleMenu, setMenu, chordLabel, deleteSet;
     private final CheckBox fallback;
     private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
@@ -105,13 +105,16 @@ final class EditorView extends FrameLayout {
         LinearLayout setRow = new LinearLayout(context);
         setRow.setGravity(Gravity.CENTER_VERTICAL);
         setMenu = button(setRow, "", EditorTheme.Tone.NORMAL, v -> chooseSet());
-        hint = new TextView(context);
-        hint.setTextColor(EditorTheme.TEXT_DIM);
-        hint.setTextSize(16);
-        hint.setTypeface(EditorTheme.LABEL);
-        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        hintParams.setMargins(theme.dp(8), 0, theme.dp(4), 0);
-        setRow.addView(hint, hintParams);
+        button(setRow, "Duplicate", EditorTheme.Tone.NORMAL, v -> duplicateSet());
+        button(setRow, "Set activation chord", EditorTheme.Tone.NORMAL, v -> awaitSetChord());
+        chordLabel = new TextView(context);
+        chordLabel.setTextColor(EditorTheme.TEXT);
+        chordLabel.setTextSize(18);
+        chordLabel.setTypeface(EditorTheme.LABEL);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        labelParams.setMargins(theme.dp(8), 0, theme.dp(4), 0);
+        setRow.addView(chordLabel, labelParams);
+        deleteSet = button(setRow, "Delete set", EditorTheme.Tone.DANGER, v -> deleteSet());
 
         panel.addView(row, fullWidth(0));
         panel.addView(setRow, fullWidth(theme.dp(8)));
@@ -157,7 +160,8 @@ final class EditorView extends FrameLayout {
     private void bindSetChord(String chord) {
         int other = chords.indexOf(chord);
         if (other >= 0 && other != current) {
-            hint.setText(chordText(chord) + " already switches to set " + (other + 1) + "; press another");
+            Toast.makeText(getContext(), chordText(chord) + " already activates set " + (other + 1),
+                    Toast.LENGTH_SHORT).show();
             return;
         }
         chords.set(current, chord);
@@ -217,39 +221,32 @@ final class EditorView extends FrameLayout {
 
     private void chooseSet() {
         PopupMenu menu = new PopupMenu(getContext(), setMenu);
-        Menu items = menu.getMenu();
         for (int i = 0; i < sets.size(); i++) {
-            String chord = chords.get(i);
-            items.add(0, i, 0, "Set " + (i + 1) + (chord == null ? "" : " (" + chordText(chord) + ")"))
-                    .setCheckable(true).setChecked(i == current);
+            menu.getMenu().add(0, i, 0, setName(i)).setCheckable(true).setChecked(i == current);
         }
-        int base = sets.size();
-        items.add(1, base, 0, "New set, copying this one");
-        items.add(1, base + 1, 0, "Set the chord that switches to this set");
-        if (current == 0 && chords.get(0) != null) items.add(1, base + 2, 0, "Remove this set's chord");
-        if (sets.size() > 1) items.add(1, base + 3, 0, "Delete this set");
         menu.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id < base) {
-                showSet(id);
-            } else if (id == base) {
-                sets.add(new ArrayList<>(controls));
-                chords.add(null);
-                showSet(sets.size() - 1);
-                awaitSetChord();
-            } else if (id == base + 1) {
-                awaitSetChord();
-            } else if (id == base + 2) {
-                chords.set(0, null);
-                changed();
-            } else {
-                sets.remove(current);
-                chords.remove(current);
-                showSet(Math.min(current, sets.size() - 1));
-            }
+            showSet(item.getItemId());
             return true;
         });
         menu.show();
+    }
+
+    private void duplicateSet() {
+        sets.add(new ArrayList<>(controls));
+        chords.add(null);
+        showSet(sets.size() - 1);
+        awaitSetChord();
+    }
+
+    private void deleteSet() {
+        if (sets.size() <= 1) return;
+        sets.remove(current);
+        chords.remove(current);
+        showSet(Math.min(current, sets.size() - 1));
+    }
+
+    private static String setName(int index) {
+        return "Set " + (index + 1);
     }
 
     private void showSet(int index) {
@@ -318,8 +315,10 @@ final class EditorView extends FrameLayout {
     }
 
     private void updateTools() {
-        setMenu.setText("Set " + (current + 1) + " of " + sets.size() + " ▾");
-        hint.setText(setHint());
+        setMenu.setText(setName(current) + " ▾");
+        String chord = chords.get(current);
+        chordLabel.setText(awaitingSetChord ? "Press activation chord buttons now" : chord == null ? "" : chordText(chord));
+        deleteSet.setVisibility(sets.size() > 1 ? VISIBLE : GONE);
         editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);
@@ -327,16 +326,6 @@ final class EditorView extends FrameLayout {
         String other = selectedAim.stick().equals("LS") ? "RS" : "LS";
         fallback.setText("Aim with " + other + " when " + selectedAim.stick() + " is idle");
         fallback.setChecked(selectedAim.fallback());
-    }
-
-    private String setHint() {
-        if (awaitingSetChord) return "Hold the buttons that switch to set " + (current + 1) + ", then let go";
-        String chord = chords.get(current);
-        if (chord != null) {
-            return chordText(chord) + " switches to this set" + (current == 0 ? "" : ", and back to set 1");
-        }
-        if (current > 0) return "No chord: nothing switches to this set";
-        return sets.size() > 1 ? "Active at the start" : "";
     }
 
     private String label(int index) {
