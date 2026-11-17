@@ -11,6 +11,7 @@ final class Store {
     private static final Pattern PACKAGE = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+");
     // root outside an app's mount namespace (Lepton, su) has no /sdcard; the backing dir is the same storage
     private static final String[] ROOTS = {"/sdcard", "/storage/emulated/0", "/data/media/0"};
+    private static final String SETTINGS = "settings.json";
 
     private final File dir;
 
@@ -34,14 +35,33 @@ final class Store {
         return new File(dir, pkg + ".json");
     }
 
-    String read(String pkg) throws IOException {
-        return new String(Files.readAllBytes(file(pkg).toPath()), StandardCharsets.UTF_8);
+    File settingsFile() {
+        return new File(dir, SETTINGS);
     }
 
-    synchronized void write(String pkg, String json) throws IOException {
-        File target = file(pkg);
+    String read(String pkg) throws IOException {
+        return read(file(pkg));
+    }
+
+    String readSettings() throws IOException {
+        return read(settingsFile());
+    }
+
+    void write(String pkg, String json) throws IOException {
+        write(file(pkg), json);
+    }
+
+    void writeSettings(String json) throws IOException {
+        write(settingsFile(), json);
+    }
+
+    private static String read(File file) throws IOException {
+        return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+    }
+
+    private synchronized void write(File target, String json) throws IOException {
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
-        File temp = new File(dir, "." + pkg + ".tmp");
+        File temp = new File(dir, "." + target.getName() + ".tmp");
         try (FileOutputStream out = new FileOutputStream(temp)) {
             out.write(json.getBytes(StandardCharsets.UTF_8));
             out.getFD().sync();

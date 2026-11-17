@@ -16,24 +16,27 @@ injection, the same way scrcpy and Shizuku work.
 
 ## Editing a layout
 
-Press **Select + Start** on the gamepad to open the editor over the game.
+Press the editor chord on the gamepad, **Select + Start** unless you change it, to open the editor over the game.
 
 - **+ Tap**, **+ Stick**, **+ Aim** add a control in the middle of the screen, already selected (yellow). Drag
   it onto the game's on-screen button.
 - Bind the selected control from the pad. A tap: press its button, or hold several buttons together for a chord
   (`LT+RB`). A joystick: move its stick. An aim: press its button (or a chord), then move the stick that aims it
-  (the label shows `LB+?` until you do). Select and Start are kept for the editor's shortcut; bind them by editing
-  the file.
+  (the label shows `LB+?` until you do). The editor chord's buttons are kept for it; bind them by editing the file.
 - Tap a control to select it again and rebind, move or resize it; **Delete** removes it. The **Smaller**,
   **Larger** and **Delete** buttons appear while a control is selected.
 - **Smaller** / **Larger** resize the selected control: how far a joystick drags, an aim's reach (for a tap, only
   how big it is in the editor).
 - A selected aim has a checkbox, **Aim with LS when RS is idle** (off by default): the other stick aims the skill
   while its own stick is untouched.
-- The style menu next to **Done** (**Xbox ▾**) switches the on-screen button labels between Xbox, Nintendo,
-  PlayStation, Steam (Steam Deck / Steam Controller) and Steam + PS (PlayStation face buttons, Steam's View, Menu
-  and Steam buttons). Layout files always use the Xbox names: `A` is the bottom face button, `B` right, `X` left, `Y` top.
-- **Done** (or Select + Start) saves any changes and returns to the game; a message confirms the save or says
+- The settings (cog) menu next to **Done**:
+  - **Button style** switches the on-screen button labels between Xbox, Nintendo, PlayStation, Steam (Steam Deck /
+    Steam Controller) and Steam + PS (PlayStation face buttons, Steam's View, Menu and Steam buttons). Layout files
+    always use the Xbox names: `A` is the bottom face button, `B` right, `X` left, `Y` top.
+  - **Editor chord** changes the buttons that open and close the editor: pick it, then hold the new buttons on the
+    pad and let go. It's saved in `/sdcard/Padmap/settings.json` (`{"editorChord": "SELECT+START"}`) and applies
+    to every game.
+- **Done** (or the editor chord) saves any changes and returns to the game; a message confirms the save or says
   why it failed. If the daemon stops while the editor is open, unsaved changes are lost.
 
 For example, an aim skill on LB aimed with the right stick: **+ Aim**, drag it onto the skill, press **LB**, push

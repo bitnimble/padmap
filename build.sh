@@ -11,10 +11,13 @@ W="$B/work"
 KEY="$HOME/.android/debug.keystore"
 
 rm -rf "$W"
-mkdir -p "$W/hidden" "$W/classes" "$W/dex" "$W/test"
+mkdir -p "$W/hidden" "$W/classes" "$W/dex" "$W/test" "$W/gen"
 # hidden/: compile-only stubs of hidden framework classes; the device's own classes are used at runtime
 javac --release 17 -classpath "$JAR" -d "$W/hidden" $(find "$R/hidden" -name '*.java')
-find "$R/src" -name '*.java' >"$W/sources"
+"$BT/aapt2" compile --dir "$R/res" -o "$W/res.zip"
+"$BT/aapt2" link -o "$W/unsigned.apk" -I "$JAR" --manifest "$R/AndroidManifest.xml" -A "$R/assets" \
+    --java "$W/gen" "$W/res.zip"
+find "$R/src" "$W/gen" -name '*.java' >"$W/sources"
 javac --release 17 -Xlint:all,-options,-serial -Werror -classpath "$JAR:$W/hidden" -d "$W/classes" @"$W/sources"
 
 javac --release 17 -d "$W/test" "$R"/src/app/padmap/layout/{Control,Layout,PadState,Mapper,Chord,Button,SetSwitcher}.java \
@@ -25,7 +28,6 @@ done
 
 mapfile -t classes < <(find "$W/classes" -name '*.class')
 "$BT/d8" --min-api 30 --lib "$JAR" --classpath "$W/hidden" --output "$W/dex" "${classes[@]}"
-"$BT/aapt2" link -o "$W/unsigned.apk" -I "$JAR" --manifest "$R/AndroidManifest.xml" -A "$R/assets"
 (cd "$W/dex" && zip -q "$W/unsigned.apk" classes.dex)
 "$BT/zipalign" -f 4 "$W/unsigned.apk" "$W/aligned.apk"
 if [[ ! -f "$KEY" ]]; then

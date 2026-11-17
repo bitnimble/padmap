@@ -2,16 +2,20 @@ package app.padmap.ui;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.content.res.Resources;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 import app.padmap.layout.Button;
 import java.util.ArrayList;
@@ -77,12 +81,27 @@ final class EditorTheme {
         view.setTextColor(tone == Tone.PRIMARY ? Color.WHITE : tone == Tone.DANGER ? DANGER : TEXT);
         view.setMinWidth(dp(48));
         view.setPadding(dp(16), dp(8), dp(16), dp(8));
+        view.setBackground(buttonBackground(tone));
+        view.setClickable(true);
+        return view;
+    }
+
+    /** A button showing a drawable (a 24dp icon) instead of a label, as tall as a text button. */
+    ImageView iconButton(Context context, int drawable) {
+        ImageView view = new ImageView(context);
+        view.setImageResource(drawable);
+        view.setImageTintList(ColorStateList.valueOf(TEXT));
+        view.setPadding(dp(12), dp(10), dp(12), dp(10));
+        view.setBackground(buttonBackground(Tone.NORMAL));
+        view.setClickable(true);
+        return view;
+    }
+
+    private RippleDrawable buttonBackground(Tone tone) {
         GradientDrawable fill = new GradientDrawable();
         fill.setCornerRadius(dp(10));
         fill.setColor(tone == Tone.PRIMARY ? PRIMARY : SURFACE);
-        view.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), fill, null));
-        view.setClickable(true);
-        return view;
+        return new RippleDrawable(ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), fill, null);
     }
 
     GradientDrawable panel() {
@@ -101,24 +120,45 @@ final class EditorTheme {
 
     /** Draws a binding centred on (cx, cy) as controller glyphs, one per part, joined by "+". */
     void drawBinding(Canvas canvas, List<String> parts, ButtonStyle style, float cx, float cy, float height) {
+        drawBinding(canvas, parts, style, cx, cy, height, TEXT);
+    }
+
+    private void drawBinding(Canvas canvas, List<String> parts, ButtonStyle style, float cx, float cy, float height,
+            int plusColour) {
         List<Glyph> glyphs = new ArrayList<>();
         for (String part : parts) glyphs.add(glyph(part, style));
         float gap = height * 0.18f, plus = labelWidth("+", height * CHIP_TEXT);
         float[] widths = new float[glyphs.size()];
-        float total = 0;
-        for (int i = 0; i < glyphs.size(); i++) {
-            widths[i] = width(glyphs.get(i), height);
-            total += widths[i] + (i > 0 ? plus + 2 * gap : 0);
-        }
-        float x = cx - total / 2;
+        for (int i = 0; i < glyphs.size(); i++) widths[i] = width(glyphs.get(i), height);
+        float x = cx - bindingWidth(parts, style, height) / 2;
         for (int i = 0; i < glyphs.size(); i++) {
             if (i > 0) {
-                drawLabel(canvas, "+", x + gap + plus / 2, cy, height * CHIP_TEXT, TEXT);
+                drawLabel(canvas, "+", x + gap + plus / 2, cy, height * CHIP_TEXT, plusColour);
                 x += plus + 2 * gap;
             }
             draw(canvas, glyphs.get(i), style, x, widths[i], cy, height);
             x += widths[i];
         }
+    }
+
+    float bindingWidth(List<String> parts, ButtonStyle style, float height) {
+        float joins = (parts.size() - 1) * (labelWidth("+", height * CHIP_TEXT) + 2 * height * 0.18f);
+        float total = Math.max(0, joins);
+        for (String part : parts) total += width(glyph(part, style), height);
+        return total;
+    }
+
+    /** The binding's glyphs as a drawable; plusColour must show against whatever it's drawn on. */
+    BitmapDrawable bindingDrawable(Resources resources, List<String> parts, ButtonStyle style, float height,
+            int plusColour) {
+        int margin = dp(2);
+        Bitmap bitmap = Bitmap.createBitmap((int) Math.ceil(bindingWidth(parts, style, height)) + 2 * margin,
+                (int) Math.ceil(height) + 2 * margin, Bitmap.Config.ARGB_8888);
+        drawBinding(new Canvas(bitmap), parts, style, bitmap.getWidth() / 2f, bitmap.getHeight() / 2f, height,
+                plusColour);
+        BitmapDrawable drawable = new BitmapDrawable(resources, bitmap);
+        drawable.setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
+        return drawable;
     }
 
     private static Glyph glyph(String part, ButtonStyle style) {

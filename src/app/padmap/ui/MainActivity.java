@@ -49,7 +49,7 @@ public final class MainActivity extends Activity {
                 + "1. Turn on USB debugging (Developer options) and connect to a computer with adb.\n"
                 + "2. Run this on the computer, once after every phone restart:\n\n" + command + "\n\n"
                 + "   Rooted: run the same file with su -c sh instead.\n"
-                + "3. Open your game and press Select + Start on the gamepad to edit its layout. Layouts are plain "
+                + "3. Open your game and press Select + Start on the gamepad (changeable in the editor's settings) to edit its layout. Layouts are plain "
                 + "JSON in /sdcard/Padmap/<app package>.json.");
         Button copy = new Button(this);
         copy.setText("Copy command");

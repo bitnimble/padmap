@@ -1,6 +1,7 @@
 package app.padmap.daemon;
 
 import android.os.SystemClock;
+import app.padmap.layout.Chord;
 import app.padmap.layout.Control;
 import app.padmap.layout.Layout;
 import app.padmap.layout.LayoutJson;
@@ -19,6 +20,7 @@ import org.json.JSONObject;
 /** The daemon's state: focused app, its layout, the pad, connected app clients and whether one is editing. */
 final class Engine {
     private static final double STICK_FLICK = 0.6;
+    static final String DEFAULT_EDITOR_CHORD = "SELECT+START";
 
     private final TouchInjector injector;
     private final Rumble rumble;
@@ -32,6 +34,7 @@ final class Engine {
     private String padName;
     private PadState pad = PadState.NEUTRAL;
     private final SetSwitcher switcher = new SetSwitcher();
+    private String editorChord = DEFAULT_EDITOR_CHORD;
     private int width = 1, height = 1;
     private long aloneSince = SystemClock.uptimeMillis();
 
@@ -50,7 +53,7 @@ final class Engine {
     synchronized void onPad(PadState next) {
         PadState previous = pad;
         pad = next;
-        if (chord(next) && !chord(previous)) {
+        if (Chord.held(editorChord, next) && !Chord.held(editorChord, previous)) {
             toggleEditor();
         } else if (editor != null) {
             reportInput(previous, next);
@@ -85,6 +88,13 @@ final class Engine {
         retarget();
     }
 
+    synchronized void onEditorChord(String chord) {
+        if (chord.equals(editorChord)) return;
+        editorChord = chord;
+        Log.i("editor chord " + chord);
+        broadcastState();
+    }
+
     synchronized void attach(Server.Client client) {
         clients.add(client);
         client.send(state());
@@ -104,6 +114,7 @@ final class Engine {
         switch (message.getString("t")) {
             case "editing" -> setEditing(client, message.getBoolean("on"));
             case "save" -> save(client, message.getString("package"), message.getJSONObject("layout"));
+            case "editorChord" -> saveEditorChord(message.getString("chord"));
             default -> Log.i("ignoring message " + message.getString("t"));
         }
     }
@@ -133,6 +144,19 @@ final class Engine {
             reply.put("error", String.valueOf(e.getMessage()));
         }
         client.send(reply);
+    }
+
+    private void saveEditorChord(String chord) throws JSONException {
+        if (!LayoutJson.isChord(chord)) {
+            Log.i("ignoring editor chord " + chord);
+            return;
+        }
+        try {
+            store.writeSettings(new JSONObject().put("editorChord", chord).toString(2) + "\n");
+        } catch (IOException e) {
+            Log.e("saving the editor chord failed", e);
+        }
+        onEditorChord(chord);
     }
 
     private void setEditor(Server.Client client) {
@@ -165,22 +189,13 @@ final class Engine {
     }
 
     private void reportInput(PadState previous, PadState next) {
-        Set<String> held = editable(next);
         // the whole held set, so the editor can bind a chord from buttons pressed together (they arrive frame by frame)
-        if (!held.equals(editable(previous))) editor.send(input("buttons", new JSONArray(held)));
+        if (!next.buttons().equals(previous.buttons())) editor.send(input("buttons", new JSONArray(next.buttons())));
         for (String stick : new String[] {"LS", "RS"}) {
             if (next.stick(stick).magnitude() >= STICK_FLICK && previous.stick(stick).magnitude() < STICK_FLICK) {
                 editor.send(input("stick", stick));
             }
         }
-    }
-
-    /** Held buttons the editor may bind: the SELECT+START editor chord is excluded so opening it never binds. */
-    private static Set<String> editable(PadState state) {
-        Set<String> held = new HashSet<>(state.buttons());
-        held.remove("SELECT");
-        held.remove("START");
-        return held;
     }
 
     private static JSONObject input(String kind, Object value) {
@@ -201,14 +216,11 @@ final class Engine {
             return message("state").put("package", focused == null ? JSONObject.NULL : focused)
                     .put("pad", padName == null ? JSONObject.NULL : padName)
                     .put("width", width).put("height", height).put("set", switcher.active())
+                    .put("editorChord", editorChord)
                     .put("layout", LayoutJson.toJson(layout));
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
-    }
-
-    private static boolean chord(PadState state) {
-        return state.pressed("SELECT") && state.pressed("START");
     }
 
     private static JSONObject message(String type) {

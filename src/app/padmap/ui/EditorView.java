@@ -7,8 +7,14 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ReplacementSpan;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.SubMenu;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
@@ -16,6 +22,7 @@ import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
+import app.padmap.R;
 import app.padmap.layout.Button;
 import app.padmap.layout.Chord;
 import app.padmap.layout.Control;
@@ -25,6 +32,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Full-screen layout editor drawn over the game: drag controls to place them, select one and press a pad button or
@@ -33,6 +41,8 @@ import java.util.Set;
 final class EditorView extends FrameLayout {
     private static final double MIN_RADIUS = 0.02, MAX_RADIUS = 0.5, RESIZE_STEP = 1.15;
     private static final String PREF_STYLE = "buttonStyle";
+    private static final int STYLE_GROUP = 1, EDITOR_CHORD_ITEM = 1000;
+    private static final int MENU_PLUS = 0xFF5F6368;
 
     private final Layout original;
     private final SharedPreferences prefs;
@@ -45,16 +55,21 @@ final class EditorView extends FrameLayout {
     private final EditorTheme theme;
     private final ControlsView controlsView;
     private final LinearLayout editTools;
-    private final TextView styleMenu, setMenu, chordLabel, setActions;
+    private final TextView prompt, setMenu, chordLabel, setActions;
+    private final View settingsMenu;
     private final CheckBox fallback;
+    private final Consumer<String> saveEditorChord;
+    private String editorChord;
     private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
-    private boolean awaitingAimStick, awaitingSetChord;
+    private boolean awaitingAimStick, awaitingSetChord, awaitingEditorChord;
 
-    EditorView(Context context, SharedPreferences prefs, Layout layout, int activeSet, int displayWidth,
-            int displayHeight, Runnable close) {
+    EditorView(Context context, SharedPreferences prefs, Layout layout, int activeSet, String editorChord,
+            int displayWidth, int displayHeight, Consumer<String> saveEditorChord, Runnable close) {
         super(context);
         this.prefs = prefs;
+        this.editorChord = editorChord;
+        this.saveEditorChord = saveEditorChord;
         style = ButtonStyle.valueOf(prefs.getString(PREF_STYLE, ButtonStyle.XBOX.name()));
         this.original = layout;
         for (Layout.MappingSet set : layout.sets()) {
@@ -84,8 +99,15 @@ final class EditorView extends FrameLayout {
         button(editTools, "Larger", EditorTheme.Tone.NORMAL, v -> resize(RESIZE_STEP));
         button(editTools, "Delete", EditorTheme.Tone.DANGER, v -> delete());
         row.addView(editTools);
-        row.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1));
-        styleMenu = button(row, styleLabel(), EditorTheme.Tone.NORMAL, v -> chooseStyle());
+        prompt = label(context);
+        prompt.setGravity(Gravity.END);
+        LinearLayout.LayoutParams promptParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        promptParams.setMargins(theme.dp(8), 0, theme.dp(4), 0);
+        row.addView(prompt, promptParams);
+        settingsMenu = theme.iconButton(context, R.drawable.settings);
+        settingsMenu.setContentDescription("Settings");
+        settingsMenu.setOnClickListener(v -> chooseSetting());
+        addButton(row, settingsMenu);
         button(row, "Done", EditorTheme.Tone.PRIMARY, v -> close.run());
 
         fallback = new CheckBox(context);
@@ -106,10 +128,7 @@ final class EditorView extends FrameLayout {
         setRow.setGravity(Gravity.CENTER_VERTICAL);
         setMenu = button(setRow, "", EditorTheme.Tone.NORMAL, v -> chooseSet());
         setRow.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1));
-        chordLabel = new TextView(context);
-        chordLabel.setTextColor(EditorTheme.TEXT);
-        chordLabel.setTextSize(18);
-        chordLabel.setTypeface(EditorTheme.LABEL);
+        chordLabel = label(context);
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         labelParams.setMargins(theme.dp(8), 0, theme.dp(4), 0);
@@ -149,13 +168,31 @@ final class EditorView extends FrameLayout {
         if (held == null) return;
         boolean bindsButton = selected >= 0
                 && (controls.get(selected) instanceof Control.Tap || controls.get(selected) instanceof Control.Aim);
-        if (!bindsButton && !awaitingSetChord) return;
-        for (int i = 0; i < held.length(); i++) gesture.add(held.optString(i));
+        if (!bindsButton && !awaitingSetChord && !awaitingEditorChord) return;
+        List<String> editorButtons = Chord.parts(editorChord);
+        for (int i = 0; i < held.length(); i++) {
+            String button = held.optString(i);
+            // the editor chord's buttons open and close the editor, so only the editor chord itself may use them
+            if (awaitingEditorChord || !editorButtons.contains(button)) gesture.add(button);
+        }
         if (held.length() > 0 || gesture.isEmpty()) return;
         String chord = Chord.of(gesture);
         gesture.clear();
-        if (awaitingSetChord) bindSetChord(chord);
+        if (awaitingEditorChord) bindEditorChord(chord);
+        else if (awaitingSetChord) bindSetChord(chord);
         else bind(chord);
+    }
+
+    void setEditorChord(String chord) {
+        editorChord = chord;
+    }
+
+    private void bindEditorChord(String chord) {
+        editorChord = chord;
+        saveEditorChord.accept(chord);
+        awaitingEditorChord = false;
+        Toast.makeText(getContext(), "Editor chord: " + chordText(chord), Toast.LENGTH_SHORT).show();
+        changed();
     }
 
     private void bindSetChord(String chord) {
@@ -193,31 +230,46 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
+    private static TextView label(Context context) {
+        TextView label = new TextView(context);
+        label.setTextColor(EditorTheme.TEXT);
+        label.setTextSize(18);
+        label.setTypeface(EditorTheme.LABEL);
+        return label;
+    }
+
     private TextView button(LinearLayout parent, String label, EditorTheme.Tone tone, View.OnClickListener onClick) {
         TextView button = theme.button(getContext(), label, tone);
         button.setOnClickListener(onClick);
+        addButton(parent, button);
+        return button;
+    }
+
+    private void addButton(LinearLayout parent, View button) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(theme.dp(4), 0, theme.dp(4), 0);
         parent.addView(button, params);
-        return button;
     }
 
-    private void chooseStyle() {
-        PopupMenu menu = new PopupMenu(getContext(), styleMenu);
-        for (ButtonStyle option : ButtonStyle.values()) menu.getMenu().add(0, option.ordinal(), 0, option.title);
+    private void chooseSetting() {
+        PopupMenu menu = new PopupMenu(getContext(), settingsMenu);
+        SubMenu styles = menu.getMenu().addSubMenu("Button style: " + style.title);
+        for (ButtonStyle option : ButtonStyle.values()) styles.add(STYLE_GROUP, option.ordinal(), 0, option.title);
+        menu.getMenu().add(0, EDITOR_CHORD_ITEM, 0, withGlyphs("Editor chord  ", editorChord, 36, MENU_PLUS));
         menu.setOnMenuItemClickListener(item -> {
-            style = ButtonStyle.values()[item.getItemId()];
-            prefs.edit().putString(PREF_STYLE, style.name()).apply();
-            styleMenu.setText(styleLabel());
-            changed();
+            if (item.getGroupId() == STYLE_GROUP) {
+                style = ButtonStyle.values()[item.getItemId()];
+                prefs.edit().putString(PREF_STYLE, style.name()).apply();
+                changed();
+            } else if (item.getItemId() == EDITOR_CHORD_ITEM) {
+                select(-1);
+                awaitingEditorChord = true;
+                changed();
+            }
             return true;
         });
         menu.show();
-    }
-
-    private String styleLabel() {
-        return style.title + " ▾";
     }
 
     private void chooseSet() {
@@ -274,6 +326,42 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
+    private CharSequence withGlyphs(String text, String chord, int heightDp, int plusColour) {
+        SpannableStringBuilder label = new SpannableStringBuilder(text).append('￼');
+        Drawable glyphs = theme.bindingDrawable(getResources(), Chord.parts(chord), style, theme.dp(heightDp), plusColour);
+        label.setSpan(new CentredSpan(glyphs), text.length(), label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return label;
+    }
+
+    /** A drawable centred on the text's own middle, which ImageSpan.ALIGN_CENTER misses by the descent. */
+    private static final class CentredSpan extends ReplacementSpan {
+        private final Drawable drawable;
+
+        CentredSpan(Drawable drawable) {
+            this.drawable = drawable;
+        }
+
+        @Override
+        public int getSize(Paint paint, CharSequence text, int start, int end, Paint.FontMetricsInt metrics) {
+            Rect bounds = drawable.getBounds();
+            if (metrics != null) {
+                int middle = (paint.getFontMetricsInt().ascent + paint.getFontMetricsInt().descent) / 2;
+                metrics.ascent = metrics.top = Math.min(paint.getFontMetricsInt().ascent, middle - bounds.height() / 2);
+                metrics.descent = metrics.bottom = Math.max(paint.getFontMetricsInt().descent, middle + bounds.height() / 2);
+            }
+            return bounds.width();
+        }
+
+        @Override
+        public void draw(Canvas canvas, CharSequence text, int start, int end, float x, int top, int y, int bottom,
+                Paint paint) {
+            canvas.save();
+            canvas.translate(x, y + (paint.ascent() + paint.descent()) / 2 - drawable.getBounds().height() / 2f);
+            drawable.draw(canvas);
+            canvas.restore();
+        }
+    }
+
     private String chordText(String chord) {
         List<String> labels = new ArrayList<>();
         for (String part : Chord.parts(chord)) {
@@ -318,6 +406,7 @@ final class EditorView extends FrameLayout {
         selected = index;
         awaitingAimStick = false;
         awaitingSetChord = false;
+        awaitingEditorChord = false;
         gesture.clear();
         changed();
     }
@@ -328,9 +417,11 @@ final class EditorView extends FrameLayout {
     }
 
     private void updateTools() {
+        prompt.setText(awaitingEditorChord ? "Press new editor chord buttons now" : "");
         setMenu.setText(setName(current) + " ▾");
         String chord = chords.get(current);
-        chordLabel.setText(awaitingSetChord ? "Press activation chord buttons now" : chord == null ? "" : chordText(chord));
+        chordLabel.setText(awaitingSetChord ? "Press activation chord buttons now"
+                : chord == null ? "" : withGlyphs("", chord, 30, EditorTheme.TEXT));
         editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);

@@ -69,8 +69,18 @@ public final class Main {
         private long modified = -1;
         private Layout layout = Layout.EMPTY;
         private long appStartedAt;
+        private long settingsModified = -1;
 
         void poll(Engine engine, Store store) {
+            long modified = store.settingsFile().lastModified();
+            if (modified != settingsModified) {
+                settingsModified = modified;
+                engine.onEditorChord(modified == 0 ? Engine.DEFAULT_EDITOR_CHORD : loadEditorChord(store));
+            }
+            pollFocus(engine, store);
+        }
+
+        private void pollFocus(Engine engine, Store store) {
             String focused = Platform.focusedPackage();
             File file = Store.validPackage(focused) ? store.file(focused) : null;
             long fileModified = file == null ? -1 : file.lastModified();
@@ -87,6 +97,17 @@ public final class Main {
                 appStartedAt = now;
             }
         }
+    }
+
+    private static String loadEditorChord(Store store) {
+        try {
+            String chord = new JSONObject(store.readSettings()).optString("editorChord", Engine.DEFAULT_EDITOR_CHORD);
+            if (LayoutJson.isChord(chord)) return chord;
+            Log.i("settings: unknown editor chord " + chord + "; using " + Engine.DEFAULT_EDITOR_CHORD);
+        } catch (IOException | JSONException e) {
+            Log.e("settings unreadable; editor chord " + Engine.DEFAULT_EDITOR_CHORD, e);
+        }
+        return Engine.DEFAULT_EDITOR_CHORD;
     }
 
     private static Layout load(Store store, String pkg) {

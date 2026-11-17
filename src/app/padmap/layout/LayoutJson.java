@@ -56,9 +56,13 @@ public final class LayoutJson {
         return value;
     }
 
+    public static boolean isChord(String spec) {
+        return spec != null && BUTTON.matcher(spec).matches();
+    }
+
     private static String button(JSONObject json, String key) throws JSONException {
         String button = json.getString(key);
-        if (!BUTTON.matcher(button).matches()) throw new JSONException("unknown button " + button);
+        if (!isChord(button)) throw new JSONException("unknown button " + button);
         return button;
     }
 

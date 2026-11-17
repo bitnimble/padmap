@@ -19,7 +19,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** Holds the daemon connection and the editor overlay, which opens on the Select + Start chord. */
+/** Holds the daemon connection and the editor overlay, which opens on the editor chord. */
 public final class OverlayService extends Service implements DaemonClient.Listener {
     private static final String CHANNEL = "padmap";
     private static final int NOTIFICATION = 1;
@@ -129,6 +129,15 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         }
     }
 
+    private void saveEditorChord(String chord) {
+        if (client == null) return;
+        try {
+            client.send(new JSONObject().put("t", "editorChord").put("chord", chord));
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private void onState(JSONObject message) {
         JSONObject previous = state;
         state = message;
@@ -140,7 +149,10 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         }
         String pad = message.isNull("pad") ? "no gamepad found" : "gamepad " + message.optString("pad");
         status = "Connected: " + pad + ", focused app " + (pkg == null ? "none" : pkg) + ".";
-        if (editor != null) editor.setDisplaySize(message.optInt("width"), message.optInt("height"));
+        if (editor != null) {
+            editor.setDisplaySize(message.optInt("width"), message.optInt("height"));
+            editor.setEditorChord(message.optString("editorChord"));
+        }
         if (editWhenConnected) {
             editWhenConnected = false;
             openEditor();
@@ -157,8 +169,8 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             layout = Layout.EMPTY;
         }
         editing = pkg;
-        editor = new EditorView(this, prefs, layout, state.optInt("set"), state.optInt("width"),
-                state.optInt("height"), this::close);
+        editor = new EditorView(this, prefs, layout, state.optInt("set"), state.optString("editorChord"),
+                state.optInt("width"), state.optInt("height"), this::saveEditorChord, this::close);
         windows.addView(editor, overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT));
         sendEditing(true);
