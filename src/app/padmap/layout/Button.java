@@ -34,12 +34,17 @@ public enum Button {
         return names.toString();
     }
 
+    /** The button with this name, or null for anything else (KEY_*, a stick name). */
+    public static Button named(String name) {
+        for (Button button : values()) {
+            if (button.name().equals(name)) return button;
+        }
+        return null;
+    }
+
     /** Chord-sort rank of a name; unknown names (KEY_*) sort last. */
     public static int rank(String name) {
-        try {
-            return valueOf(name).ordinal();
-        } catch (IllegalArgumentException e) {
-            return values().length;
-        }
+        Button button = named(name);
+        return button == null ? values().length : button.ordinal();
     }
 }

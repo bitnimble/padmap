@@ -1,6 +1,7 @@
 package app.padmap.ui;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -12,6 +13,7 @@ import android.view.View;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import app.padmap.layout.Chord;
 import app.padmap.layout.Control;
@@ -28,20 +30,27 @@ import java.util.Set;
  */
 final class EditorView extends FrameLayout {
     private static final double MIN_RADIUS = 0.02, MAX_RADIUS = 0.5, RESIZE_STEP = 1.15;
+    private static final String PREF_STYLE = "buttonStyle";
 
     private final Layout original;
+    private final SharedPreferences prefs;
+    private ButtonStyle style;
     private final List<Control> controls;
     private int displayWidth, displayHeight;
     private final EditorTheme theme;
     private final ControlsView controlsView;
     private final LinearLayout editTools;
+    private final TextView styleMenu;
     private final CheckBox fallback;
     private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
     private boolean awaitingAimStick;
 
-    EditorView(Context context, Layout layout, int displayWidth, int displayHeight, Runnable close) {
+    EditorView(Context context, SharedPreferences prefs, Layout layout, int displayWidth, int displayHeight,
+            Runnable close) {
         super(context);
+        this.prefs = prefs;
+        style = ButtonStyle.valueOf(prefs.getString(PREF_STYLE, ButtonStyle.XBOX.name()));
         this.original = layout;
         this.controls = new ArrayList<>(layout.controls());
         this.displayWidth = displayWidth;
@@ -66,6 +75,7 @@ final class EditorView extends FrameLayout {
         button(editTools, "Delete", EditorTheme.Tone.DANGER, v -> delete());
         row.addView(editTools);
         row.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1));
+        styleMenu = button(row, styleLabel(), EditorTheme.Tone.NORMAL, v -> chooseStyle());
         button(row, "Done", EditorTheme.Tone.PRIMARY, v -> close.run());
 
         fallback = new CheckBox(context);
@@ -139,13 +149,31 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
-    private void button(LinearLayout parent, String label, EditorTheme.Tone tone, View.OnClickListener onClick) {
+    private TextView button(LinearLayout parent, String label, EditorTheme.Tone tone, View.OnClickListener onClick) {
         TextView button = theme.button(getContext(), label, tone);
         button.setOnClickListener(onClick);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(theme.dp(4), 0, theme.dp(4), 0);
         parent.addView(button, params);
+        return button;
+    }
+
+    private void chooseStyle() {
+        PopupMenu menu = new PopupMenu(getContext(), styleMenu);
+        for (ButtonStyle option : ButtonStyle.values()) menu.getMenu().add(0, option.ordinal(), 0, option.title);
+        menu.setOnMenuItemClickListener(item -> {
+            style = ButtonStyle.values()[item.getItemId()];
+            prefs.edit().putString(PREF_STYLE, style.name()).apply();
+            styleMenu.setText(styleLabel());
+            controlsView.invalidate();
+            return true;
+        });
+        menu.show();
+    }
+
+    private String styleLabel() {
+        return style.title + " ▾";
     }
 
     private static LinearLayout.LayoutParams fullWidth(int topMargin) {
@@ -248,7 +276,7 @@ final class EditorView extends FrameLayout {
                     canvas.drawCircle(x, y, knob, fill);
                     canvas.drawCircle(x, y, knob, stroke);
                 }
-                theme.drawBinding(canvas, Chord.parts(label(i)), x, y, glyph);
+                theme.drawBinding(canvas, Chord.parts(label(i)), style, x, y, glyph);
             }
         }
 

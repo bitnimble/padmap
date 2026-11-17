@@ -151,7 +151,7 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             layout = Layout.EMPTY;
         }
         editing = pkg;
-        editor = new EditorView(this, layout, state.optInt("width"), state.optInt("height"), this::close);
+        editor = new EditorView(this, prefs, layout, state.optInt("width"), state.optInt("height"), this::close);
         windows.addView(editor, overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT));
         sendEditing(true);
