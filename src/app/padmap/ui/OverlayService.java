@@ -7,16 +7,10 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
-import android.graphics.Color;
 import android.graphics.PixelFormat;
-import android.graphics.drawable.GradientDrawable;
 import android.os.IBinder;
 import android.provider.Settings;
-import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.View;
 import android.view.WindowManager;
-import android.widget.TextView;
 import android.widget.Toast;
 import app.padmap.Protocol;
 import app.padmap.layout.Layout;
@@ -25,7 +19,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** Holds the daemon connection and the overlays: a draggable bubble that opens the editor, and the editor itself. */
+/** Holds the daemon connection and the editor overlay, which opens on the Select + Start chord. */
 public final class OverlayService extends Service implements DaemonClient.Listener {
     private static final String CHANNEL = "padmap";
     private static final int NOTIFICATION = 1;
@@ -38,7 +32,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     private DaemonClient client;
     private String token;
     private JSONObject state;
-    private View bubble;
     private EditorView editor;
     private String editing;
     private boolean editWhenConnected;
@@ -80,7 +73,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     public void onDestroy() {
         closeEditor();
         if (client != null) client.stop();
-        showBubble(false);
         super.onDestroy();
     }
 
@@ -119,14 +111,12 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             Toast.makeText(this, "Padmap's daemon stopped; your layout changes weren't saved", Toast.LENGTH_LONG).show();
         }
         closeEditor();
-        showBubble(false);
     }
 
     private void close() {
         Layout changed = editor.changedLayout();
         if (changed != null) save(changed);
         closeEditor();
-        updateBubble();
     }
 
     private void save(Layout layout) {
@@ -149,20 +139,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             editWhenConnected = false;
             openEditor();
         }
-        updateBubble();
-    }
-
-    private void updateBubble() {
-        String pkg = focusedPackage();
-        boolean mapping = state != null && !state.isNull("pad") && hasControls();
-        // hidden while mapping: mapped touches could land on it, and Select + Start opens the editor instead
-        showBubble(editor == null && pkg != null && !pkg.equals(getPackageName()) && !mapping);
-    }
-
-    private boolean hasControls() {
-        JSONObject layout = state.optJSONObject("layout");
-        JSONArray controls = layout == null ? null : layout.optJSONArray("controls");
-        return controls != null && controls.length() > 0;
     }
 
     private void openEditor() {
@@ -178,7 +154,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         editor = new EditorView(this, pkg, layout, state.optInt("width"), state.optInt("height"), this::close);
         windows.addView(editor, overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT));
-        showBubble(false);
         sendEditing(true);
     }
 
@@ -203,33 +178,6 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         return state == null || state.isNull("package") ? null : state.optString("package");
     }
 
-    private void showBubble(boolean show) {
-        if (show == (bubble != null)) return;
-        if (!show) {
-            windows.removeView(bubble);
-            bubble = null;
-            return;
-        }
-        if (!Settings.canDrawOverlays(this)) return;
-        int size = (int) (48 * getResources().getDisplayMetrics().density);
-        TextView view = new TextView(this);
-        view.setText("✥");
-        view.setTextColor(Color.WHITE);
-        view.setTextSize(22);
-        view.setGravity(Gravity.CENTER);
-        GradientDrawable circle = new GradientDrawable();
-        circle.setShape(GradientDrawable.OVAL);
-        circle.setColor(Color.argb(150, 30, 30, 30));
-        view.setBackground(circle);
-        WindowManager.LayoutParams params = overlayParams(size, size);
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.x = size / 2;
-        params.y = size * 2;
-        view.setOnTouchListener(new BubbleDrag(params));
-        windows.addView(view, params);
-        bubble = view;
-    }
-
     private static WindowManager.LayoutParams overlayParams(int width, int height) {
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(width, height,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -240,42 +188,5 @@ public final class OverlayService extends Service implements DaemonClient.Listen
         params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
         params.setFitInsetsTypes(0);
         return params;
-    }
-
-    private final class BubbleDrag implements View.OnTouchListener {
-        private final WindowManager.LayoutParams params;
-        private float startX, startY;
-        private int originX, originY;
-        private boolean moved;
-
-        BubbleDrag(WindowManager.LayoutParams params) {
-            this.params = params;
-        }
-
-        @Override
-        public boolean onTouch(View view, MotionEvent event) {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN -> {
-                    startX = event.getRawX();
-                    startY = event.getRawY();
-                    originX = params.x;
-                    originY = params.y;
-                    moved = false;
-                }
-                case MotionEvent.ACTION_MOVE -> {
-                    float dx = event.getRawX() - startX, dy = event.getRawY() - startY;
-                    moved |= Math.hypot(dx, dy) > view.getWidth() / 4f;
-                    if (!moved) break;
-                    params.x = originX + (int) dx;
-                    params.y = originY + (int) dy;
-                    windows.updateViewLayout(view, params);
-                }
-                case MotionEvent.ACTION_UP -> {
-                    if (!moved) openEditor();
-                }
-                default -> {}
-            }
-            return true;
-        }
     }
 }
