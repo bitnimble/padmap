@@ -136,7 +136,20 @@ and drops clients that don't present it.
 
 ## Building
 
-`./build.sh` (JDK 17, Android SDK with build-tools 36 and platform 36 under `ANDROID_HOME`, default
-`~/android/sdk`) runs the tests and writes `build/padmap.apk`, signed with `~/.android/debug.keystore`.
-`hidden/` holds compile-only stubs of hidden framework classes (the vibrator service interface); the device's own
-classes are used at runtime.
+Kotlin and Jetpack Compose, built with Gradle (JDK 17 and the Android SDK, via `ANDROID_HOME` or `sdk.dir` in
+`local.properties`):
+
+- `./gradlew check` runs the tests.
+- `./gradlew :app:assembleRelease` writes `app/build/outputs/apk/release/app-release.apk`, shrunk with R8 and signed
+  with `~/.android/debug.keystore` (the key earlier Padmap builds used, so it installs over them).
+
+Modules:
+
+- `core` is the layout model, file format and mapper. It's plain Kotlin, with JVM tests.
+- `app` is the APK: the daemon (`app.padmap.daemon`) and the Compose overlay, editor and setup screen
+  (`app.padmap.ui`).
+- `hidden` holds compile-only stubs of hidden framework classes (the vibrator service interface); the device's own
+  classes are used at runtime.
+
+Versions are in `gradle/libs.versions.toml`. The icons are from [Lucide](https://lucide.dev)
+([ISC licence](https://lucide.dev/license); the APK carries it as `assets/lucide.txt`).

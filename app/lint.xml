@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="MissingPermission">
+        <!-- the daemon runs as adb's shell user or root, whose permissions aren't the app's -->
+        <ignore path="src/main/kotlin/app/padmap/daemon/**" />
+    </issue>
+</lint>
