@@ -45,7 +45,7 @@ final class EditorView extends FrameLayout {
     private final EditorTheme theme;
     private final ControlsView controlsView;
     private final LinearLayout editTools;
-    private final TextView styleMenu, setMenu, chordLabel, deleteSet;
+    private final TextView styleMenu, setMenu, chordLabel, setActions;
     private final CheckBox fallback;
     private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
@@ -105,16 +105,17 @@ final class EditorView extends FrameLayout {
         LinearLayout setRow = new LinearLayout(context);
         setRow.setGravity(Gravity.CENTER_VERTICAL);
         setMenu = button(setRow, "", EditorTheme.Tone.NORMAL, v -> chooseSet());
-        button(setRow, "Duplicate", EditorTheme.Tone.NORMAL, v -> duplicateSet());
-        button(setRow, "Set activation chord", EditorTheme.Tone.NORMAL, v -> awaitSetChord());
+        setRow.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1));
         chordLabel = new TextView(context);
         chordLabel.setTextColor(EditorTheme.TEXT);
         chordLabel.setTextSize(18);
         chordLabel.setTypeface(EditorTheme.LABEL);
-        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         labelParams.setMargins(theme.dp(8), 0, theme.dp(4), 0);
         setRow.addView(chordLabel, labelParams);
-        deleteSet = button(setRow, "Delete set", EditorTheme.Tone.DANGER, v -> deleteSet());
+        button(setRow, "Set activation chord", EditorTheme.Tone.NORMAL, v -> awaitSetChord());
+        setActions = button(setRow, "⋯", EditorTheme.Tone.NORMAL, v -> chooseSetAction());
 
         panel.addView(row, fullWidth(0));
         panel.addView(setRow, fullWidth(theme.dp(8)));
@@ -231,6 +232,18 @@ final class EditorView extends FrameLayout {
         menu.show();
     }
 
+    private void chooseSetAction() {
+        PopupMenu menu = new PopupMenu(getContext(), setActions);
+        menu.getMenu().add(0, 0, 0, "Duplicate");
+        if (sets.size() > 1) menu.getMenu().add(0, 1, 0, "Delete set");
+        menu.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 0) duplicateSet();
+            else deleteSet();
+            return true;
+        });
+        menu.show();
+    }
+
     private void duplicateSet() {
         sets.add(new ArrayList<>(controls));
         chords.add(null);
@@ -318,7 +331,6 @@ final class EditorView extends FrameLayout {
         setMenu.setText(setName(current) + " ▾");
         String chord = chords.get(current);
         chordLabel.setText(awaitingSetChord ? "Press activation chord buttons now" : chord == null ? "" : chordText(chord));
-        deleteSet.setVisibility(sets.size() > 1 ? VISIBLE : GONE);
         editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);
