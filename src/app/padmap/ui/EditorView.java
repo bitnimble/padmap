@@ -42,8 +42,6 @@ final class EditorView extends FrameLayout {
     private static final double MIN_RADIUS = 0.02, MAX_RADIUS = 0.5, RESIZE_STEP = 1.15;
     private static final String PREF_STYLE = "buttonStyle";
     private static final int STYLE_GROUP = 1, EDITOR_CHORD_ITEM = 1000;
-    private static final int MENU_PLUS = 0xFF5F6368;
-
     private final Layout original;
     private final SharedPreferences prefs;
     private ButtonStyle style;
@@ -256,7 +254,7 @@ final class EditorView extends FrameLayout {
         PopupMenu menu = new PopupMenu(getContext(), settingsMenu);
         SubMenu styles = menu.getMenu().addSubMenu("Button style: " + style.title);
         for (ButtonStyle option : ButtonStyle.values()) styles.add(STYLE_GROUP, option.ordinal(), 0, option.title);
-        menu.getMenu().add(0, EDITOR_CHORD_ITEM, 0, withGlyphs("Editor chord  ", editorChord, 36, MENU_PLUS));
+        menu.getMenu().add(0, EDITOR_CHORD_ITEM, 0, withGlyphs("Editor chord  ", editorChord, 36));
         menu.setOnMenuItemClickListener(item -> {
             if (item.getGroupId() == STYLE_GROUP) {
                 style = ButtonStyle.values()[item.getItemId()];
@@ -326,10 +324,15 @@ final class EditorView extends FrameLayout {
         changed();
     }
 
-    private CharSequence withGlyphs(String text, String chord, int heightDp, int plusColour) {
-        SpannableStringBuilder label = new SpannableStringBuilder(text).append('￼');
-        Drawable glyphs = theme.bindingDrawable(getResources(), Chord.parts(chord), style, theme.dp(heightDp), plusColour);
-        label.setSpan(new CentredSpan(glyphs), text.length(), label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    private CharSequence withGlyphs(String text, String chord, int heightDp) {
+        SpannableStringBuilder label = new SpannableStringBuilder(text);
+        List<String> parts = Chord.parts(chord);
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) label.append(" + ");
+            Drawable glyph = theme.bindingDrawable(getResources(), List.of(parts.get(i)), style, theme.dp(heightDp));
+            label.append('￼');
+            label.setSpan(new CentredSpan(glyph), label.length() - 1, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
         return label;
     }
 
@@ -421,7 +424,7 @@ final class EditorView extends FrameLayout {
         setMenu.setText(setName(current) + " ▾");
         String chord = chords.get(current);
         chordLabel.setText(awaitingSetChord ? "Press activation chord buttons now"
-                : chord == null ? "" : withGlyphs("", chord, 30, EditorTheme.TEXT));
+                : chord == null ? "" : withGlyphs("", chord, 30));
         editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);

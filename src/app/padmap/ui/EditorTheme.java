@@ -120,11 +120,6 @@ final class EditorTheme {
 
     /** Draws a binding centred on (cx, cy) as controller glyphs, one per part, joined by "+". */
     void drawBinding(Canvas canvas, List<String> parts, ButtonStyle style, float cx, float cy, float height) {
-        drawBinding(canvas, parts, style, cx, cy, height, TEXT);
-    }
-
-    private void drawBinding(Canvas canvas, List<String> parts, ButtonStyle style, float cx, float cy, float height,
-            int plusColour) {
         List<Glyph> glyphs = new ArrayList<>();
         for (String part : parts) glyphs.add(glyph(part, style));
         float gap = height * 0.18f, plus = labelWidth("+", height * CHIP_TEXT);
@@ -133,7 +128,7 @@ final class EditorTheme {
         float x = cx - bindingWidth(parts, style, height) / 2;
         for (int i = 0; i < glyphs.size(); i++) {
             if (i > 0) {
-                drawLabel(canvas, "+", x + gap + plus / 2, cy, height * CHIP_TEXT, plusColour);
+                drawLabel(canvas, "+", x + gap + plus / 2, cy, height * CHIP_TEXT, TEXT);
                 x += plus + 2 * gap;
             }
             draw(canvas, glyphs.get(i), style, x, widths[i], cy, height);
@@ -148,14 +143,11 @@ final class EditorTheme {
         return total;
     }
 
-    /** The binding's glyphs as a drawable; plusColour must show against whatever it's drawn on. */
-    BitmapDrawable bindingDrawable(Resources resources, List<String> parts, ButtonStyle style, float height,
-            int plusColour) {
+    BitmapDrawable bindingDrawable(Resources resources, List<String> parts, ButtonStyle style, float height) {
         int margin = dp(2);
         Bitmap bitmap = Bitmap.createBitmap((int) Math.ceil(bindingWidth(parts, style, height)) + 2 * margin,
                 (int) Math.ceil(height) + 2 * margin, Bitmap.Config.ARGB_8888);
-        drawBinding(new Canvas(bitmap), parts, style, bitmap.getWidth() / 2f, bitmap.getHeight() / 2f, height,
-                plusColour);
+        drawBinding(new Canvas(bitmap), parts, style, bitmap.getWidth() / 2f, bitmap.getHeight() / 2f, height);
         BitmapDrawable drawable = new BitmapDrawable(resources, bitmap);
         drawable.setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
         return drawable;
