@@ -16,10 +16,14 @@ public final class Mapper {
     public static List<Contact> contacts(Layout layout, PadState pad, double aspect) {
         List<Contact> contacts = new ArrayList<>();
         List<Control> controls = layout.controls();
+        // MOBAs end a skill's aim when another finger lands, e.g. on attack: hold taps back until it's cast
+        boolean aiming = controls.stream().anyMatch(c -> c instanceof Control.Aim aim && fires(aim.button(), controls, pad));
         for (int i = 0; i < controls.size(); i++) {
             Control control = controls.get(i);
             if (control instanceof Control.Tap tap) {
-                if (fires(tap.button(), controls, pad)) contacts.add(new Contact(i, tap.x(), tap.y(), tap.x(), tap.y()));
+                if (!aiming && fires(tap.button(), controls, pad)) {
+                    contacts.add(new Contact(i, tap.x(), tap.y(), tap.x(), tap.y()));
+                }
             } else if (control instanceof Control.Joystick stick) {
                 PadState.Stick s = pad.stick(stick.stick());
                 if (s.magnitude() >= DEADZONE) contacts.add(dragged(i, stick, s, aspect));

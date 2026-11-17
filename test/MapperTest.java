@@ -26,8 +26,11 @@ public final class MapperTest {
         check(contacts(Set.of("RB"), Stick.CENTRE, new Stick(0.1, 0)),
                 List.of(new Contact(2, 0.8, 0.6, 0.8, 0.6)), "aim without stick casts in place");
         check(contacts(Set.of("RB", "A"), Stick.CENTRE, new Stick(0, 1)),
-                List.of(new Contact(1, 0.9, 0.8, 0.9, 0.8), new Contact(2, 0.8, 0.6, 0.8, 0.8)),
-                "aim drags down by the stick while another button taps");
+                List.of(new Contact(2, 0.8, 0.6, 0.8, 0.8)),
+                "a tap held during an aim doesn't touch, so it can't interrupt the aim");
+        check(contacts(Set.of("RB", "A"), new Stick(1, 0), new Stick(0, 1)),
+                List.of(new Contact(0, 0.2, 0.7, 0.25, 0.7), new Contact(2, 0.8, 0.6, 0.8, 0.8)),
+                "the movement stick keeps working during an aim");
         check(contacts(Set.of(), Stick.CENTRE, new Stick(1, 0)), List.of(), "aim stick alone touches nothing");
         check(contacts(Set.of("RB"), new Stick(1, 0), Stick.CENTRE),
                 List.of(new Contact(0, 0.2, 0.7, 0.25, 0.7), new Contact(2, 0.8, 0.6, 0.8, 0.6)),
