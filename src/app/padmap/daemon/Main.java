@@ -32,7 +32,7 @@ public final class Main {
         start(gamepad, "padmap-gamepad");
         start(() -> watch(engine, store), "padmap-watch");
         Vibration.start(rumble);
-        Platform.allowOverlay();
+        Platform.grantPermissions();
         Platform.startApp(engine.token(), false);
         Log.i("padmap daemon running as uid " + android.os.Process.myUid());
         server.serve();

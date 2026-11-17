@@ -127,11 +127,13 @@ final class Platform {
         thread.start();
     }
 
-    static void allowOverlay() {
+    static void grantPermissions() {
         try {
             exec("appops", "set", Protocol.PACKAGE, "SYSTEM_ALERT_WINDOW", "allow");
+            // without it Android drops the app's toasts while the game has the foreground
+            exec("pm", "grant", Protocol.PACKAGE, "android.permission.POST_NOTIFICATIONS");
         } catch (IOException e) {
-            Log.e("granting the overlay permission failed", e);
+            Log.e("granting the overlay and notification permissions failed", e);
         }
     }
 
