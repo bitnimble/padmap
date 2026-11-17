@@ -31,7 +31,8 @@ Press **Select + Start** on the gamepad to open the editor over the game.
 - A selected aim has a checkbox, **Aim with LS when RS is idle** (off by default): the other stick aims the skill
   while its own stick is untouched.
 - The style menu next to **Done** (**Xbox ▾**) switches the on-screen button labels between Xbox, Nintendo,
-  PlayStation and Steam (Steam Deck / Steam Controller). Layout files always use the Xbox names: `A` is the bottom face button, `B` right, `X` left, `Y` top.
+  PlayStation, Steam (Steam Deck / Steam Controller) and Steam + PS (PlayStation face buttons, Steam's View, Menu
+  and Steam buttons). Layout files always use the Xbox names: `A` is the bottom face button, `B` right, `X` left, `Y` top.
 - **Done** (or Select + Start) saves any changes and returns to the game; a message confirms the save or says
   why it failed. If the daemon stops while the editor is open, unsaved changes are lost.
 

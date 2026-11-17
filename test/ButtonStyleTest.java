@@ -21,6 +21,11 @@ public final class ButtonStyleTest {
         check(ButtonStyle.STEAM.label(Button.A).equals("A"), "Steam south is A");
         check(ButtonStyle.STEAM.label(Button.LT).equals("L2"), "Steam left trigger is L2");
         check(ButtonStyle.STEAM.label(Button.HOME).equals("Steam"), "Steam home is the Steam button");
+        check(ButtonStyle.STEAM_PLAYSTATION.label(Button.A).equals("✕"), "Steam + PS south is cross");
+        check(ButtonStyle.STEAM_PLAYSTATION.label(Button.START).equals("Menu"), "Steam + PS start is Menu");
+        check(ButtonStyle.STEAM_PLAYSTATION.label(Button.HOME).equals("Steam"), "Steam + PS home is the Steam button");
+        check(ButtonStyle.STEAM_PLAYSTATION.faceColour(Button.Y) == ButtonStyle.PLAYSTATION.faceColour(Button.Y),
+                "Steam + PS face buttons are PlayStation's colours");
         for (ButtonStyle style : ButtonStyle.values()) {
             for (Button face : new Button[] {Button.A, Button.B, Button.X, Button.Y}) style.faceColour(face);
         }
