@@ -55,7 +55,7 @@ While the editor is open the pad doesn't touch the game.
 
 | Type | Behaviour |
 | --- | --- |
-| `tap` | Touches its spot while the button is held, except while an aim is held (MOBAs end an aim when another finger lands). The button may be a chord like `"LT+RB"`: it fires only while every listed button is held, and a chord suppresses any tap or aim on a subset of its buttons (so `A+B` fires instead of a plain `A`) |
+| `tap` | Touches its spot while the button is held, alongside any held aim or joystick. The button may be a chord like `"LT+RB"`: it fires only while every listed button is held, and a chord suppresses any tap or aim on a subset of its buttons (so `A+B` fires instead of a plain `A`) |
 | `joystick` | When the stick leaves its deadzone: touches down at the centre, then drags in the stick's direction, up to `radius` |
 | `aim` | MOBA-style skill: touches down on the skill while the button is held, drags by the stick up to `radius`, lifts (casts) on release. Without the stick it casts in place; with `"fallback": true` the other stick aims while `stick` is centred |
 
