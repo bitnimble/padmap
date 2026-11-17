@@ -130,8 +130,14 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     }
 
     private void onState(JSONObject message) {
+        JSONObject previous = state;
         state = message;
         String pkg = focusedPackage();
+        int set = message.optInt("set");
+        if (editor == null && previous != null && pkg != null && pkg.equals(packageOf(previous))
+                && set != previous.optInt("set")) {
+            Toast.makeText(this, "Padmap: mapping set " + (set + 1), Toast.LENGTH_SHORT).show();
+        }
         String pad = message.isNull("pad") ? "no gamepad found" : "gamepad " + message.optString("pad");
         status = "Connected: " + pad + ", focused app " + (pkg == null ? "none" : pkg) + ".";
         if (editor != null) editor.setDisplaySize(message.optInt("width"), message.optInt("height"));
@@ -151,7 +157,8 @@ public final class OverlayService extends Service implements DaemonClient.Listen
             layout = Layout.EMPTY;
         }
         editing = pkg;
-        editor = new EditorView(this, prefs, layout, state.optInt("width"), state.optInt("height"), this::close);
+        editor = new EditorView(this, prefs, layout, state.optInt("set"), state.optInt("width"),
+                state.optInt("height"), this::close);
         windows.addView(editor, overlayParams(WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT));
         sendEditing(true);
@@ -175,7 +182,11 @@ public final class OverlayService extends Service implements DaemonClient.Listen
     }
 
     private String focusedPackage() {
-        return state == null || state.isNull("package") ? null : state.optString("package");
+        return state == null ? null : packageOf(state);
+    }
+
+    private static String packageOf(JSONObject state) {
+        return state.isNull("package") ? null : state.optString("package");
     }
 
     private static WindowManager.LayoutParams overlayParams(int width, int height) {

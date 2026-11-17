@@ -17,9 +17,9 @@ javac --release 17 -classpath "$JAR" -d "$W/hidden" $(find "$R/hidden" -name '*.
 find "$R/src" -name '*.java' >"$W/sources"
 javac --release 17 -Xlint:all,-options,-serial -Werror -classpath "$JAR:$W/hidden" -d "$W/classes" @"$W/sources"
 
-javac --release 17 -d "$W/test" "$R"/src/app/padmap/layout/{Control,Layout,PadState,Mapper,Chord,Button}.java \
+javac --release 17 -d "$W/test" "$R"/src/app/padmap/layout/{Control,Layout,PadState,Mapper,Chord,Button,SetSwitcher}.java \
     "$R"/src/app/padmap/daemon/Getevent.java "$R"/src/app/padmap/ui/ButtonStyle.java "$R"/test/*.java
-for test in MapperTest app.padmap.daemon.GeteventTest app.padmap.ui.ButtonStyleTest; do
+for test in MapperTest SetSwitcherTest app.padmap.daemon.GeteventTest app.padmap.ui.ButtonStyleTest; do
     java -cp "$W/test" "$test"
 done
 

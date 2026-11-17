@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.view.Gravity;
+import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.CheckBox;
@@ -15,6 +16,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
+import app.padmap.layout.Button;
 import app.padmap.layout.Chord;
 import app.padmap.layout.Control;
 import app.padmap.layout.Layout;
@@ -35,24 +37,32 @@ final class EditorView extends FrameLayout {
     private final Layout original;
     private final SharedPreferences prefs;
     private ButtonStyle style;
-    private final List<Control> controls;
+    private final List<List<Control>> sets = new ArrayList<>();
+    private final List<String> chords = new ArrayList<>();
+    private int current;
+    private List<Control> controls;
     private int displayWidth, displayHeight;
     private final EditorTheme theme;
     private final ControlsView controlsView;
     private final LinearLayout editTools;
-    private final TextView styleMenu;
+    private final TextView styleMenu, setMenu, hint;
     private final CheckBox fallback;
     private final Set<String> gesture = new LinkedHashSet<>();
     private int selected = -1;
-    private boolean awaitingAimStick;
+    private boolean awaitingAimStick, awaitingSetChord;
 
-    EditorView(Context context, SharedPreferences prefs, Layout layout, int displayWidth, int displayHeight,
-            Runnable close) {
+    EditorView(Context context, SharedPreferences prefs, Layout layout, int activeSet, int displayWidth,
+            int displayHeight, Runnable close) {
         super(context);
         this.prefs = prefs;
         style = ButtonStyle.valueOf(prefs.getString(PREF_STYLE, ButtonStyle.XBOX.name()));
         this.original = layout;
-        this.controls = new ArrayList<>(layout.controls());
+        for (Layout.MappingSet set : layout.sets()) {
+            sets.add(new ArrayList<>(set.controls()));
+            chords.add(set.chord());
+        }
+        current = activeSet >= 0 && activeSet < sets.size() ? activeSet : 0;
+        controls = sets.get(current);
         this.displayWidth = displayWidth;
         this.displayHeight = displayHeight;
         theme = new EditorTheme(context);
@@ -92,7 +102,19 @@ final class EditorView extends FrameLayout {
         panel.setElevation(theme.dp(8));
         int pad = theme.dp(12);
         panel.setPadding(pad, pad, pad, pad);
+        LinearLayout setRow = new LinearLayout(context);
+        setRow.setGravity(Gravity.CENTER_VERTICAL);
+        setMenu = button(setRow, "", EditorTheme.Tone.NORMAL, v -> chooseSet());
+        hint = new TextView(context);
+        hint.setTextColor(EditorTheme.TEXT_DIM);
+        hint.setTextSize(16);
+        hint.setTypeface(EditorTheme.LABEL);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        hintParams.setMargins(theme.dp(8), 0, theme.dp(4), 0);
+        setRow.addView(hint, hintParams);
+
         panel.addView(row, fullWidth(0));
+        panel.addView(setRow, fullWidth(theme.dp(8)));
         panel.addView(fallback, fullWidth(theme.dp(8)));
         int width = Math.min(theme.dp(820), (int) (getResources().getDisplayMetrics().widthPixels * 0.92f));
         LayoutParams top = new LayoutParams(width, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
@@ -103,7 +125,9 @@ final class EditorView extends FrameLayout {
 
     /** The edited layout, or null if nothing changed. */
     Layout changedLayout() {
-        Layout layout = new Layout(controls);
+        List<Layout.MappingSet> edited = new ArrayList<>();
+        for (int i = 0; i < sets.size(); i++) edited.add(new Layout.MappingSet(chords.get(i), sets.get(i)));
+        Layout layout = new Layout(edited);
         // at the file's precision: touching a control without dragging it nudges its float position
         boolean same = LayoutJson.toJson(layout).toString().equals(LayoutJson.toJson(original).toString());
         return same ? null : layout;
@@ -118,12 +142,27 @@ final class EditorView extends FrameLayout {
 
     /** The buttons held this frame; the chord is bound when they are all released, so holding several binds a chord. */
     void onButtons(org.json.JSONArray held) {
-        if (selected < 0 || held == null) return;
-        if (!(controls.get(selected) instanceof Control.Tap) && !(controls.get(selected) instanceof Control.Aim)) return;
+        if (held == null) return;
+        boolean bindsButton = selected >= 0
+                && (controls.get(selected) instanceof Control.Tap || controls.get(selected) instanceof Control.Aim);
+        if (!bindsButton && !awaitingSetChord) return;
         for (int i = 0; i < held.length(); i++) gesture.add(held.optString(i));
         if (held.length() > 0 || gesture.isEmpty()) return;
-        bind(Chord.of(gesture));
+        String chord = Chord.of(gesture);
         gesture.clear();
+        if (awaitingSetChord) bindSetChord(chord);
+        else bind(chord);
+    }
+
+    private void bindSetChord(String chord) {
+        int other = chords.indexOf(chord);
+        if (other >= 0 && other != current) {
+            hint.setText(chordText(chord) + " already switches to set " + (other + 1) + "; press another");
+            return;
+        }
+        chords.set(current, chord);
+        awaitingSetChord = false;
+        changed();
     }
 
     private void bind(String button) {
@@ -166,7 +205,7 @@ final class EditorView extends FrameLayout {
             style = ButtonStyle.values()[item.getItemId()];
             prefs.edit().putString(PREF_STYLE, style.name()).apply();
             styleMenu.setText(styleLabel());
-            controlsView.invalidate();
+            changed();
             return true;
         });
         menu.show();
@@ -174,6 +213,64 @@ final class EditorView extends FrameLayout {
 
     private String styleLabel() {
         return style.title + " ▾";
+    }
+
+    private void chooseSet() {
+        PopupMenu menu = new PopupMenu(getContext(), setMenu);
+        Menu items = menu.getMenu();
+        for (int i = 0; i < sets.size(); i++) {
+            String chord = chords.get(i);
+            items.add(0, i, 0, "Set " + (i + 1) + (chord == null ? "" : " (" + chordText(chord) + ")"))
+                    .setCheckable(true).setChecked(i == current);
+        }
+        int base = sets.size();
+        items.add(1, base, 0, "New set, copying this one");
+        items.add(1, base + 1, 0, "Set the chord that switches to this set");
+        if (current == 0 && chords.get(0) != null) items.add(1, base + 2, 0, "Remove this set's chord");
+        if (sets.size() > 1) items.add(1, base + 3, 0, "Delete this set");
+        menu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id < base) {
+                showSet(id);
+            } else if (id == base) {
+                sets.add(new ArrayList<>(controls));
+                chords.add(null);
+                showSet(sets.size() - 1);
+                awaitSetChord();
+            } else if (id == base + 1) {
+                awaitSetChord();
+            } else if (id == base + 2) {
+                chords.set(0, null);
+                changed();
+            } else {
+                sets.remove(current);
+                chords.remove(current);
+                showSet(Math.min(current, sets.size() - 1));
+            }
+            return true;
+        });
+        menu.show();
+    }
+
+    private void showSet(int index) {
+        current = index;
+        controls = sets.get(index);
+        select(-1);
+    }
+
+    private void awaitSetChord() {
+        select(-1);
+        awaitingSetChord = true;
+        changed();
+    }
+
+    private String chordText(String chord) {
+        List<String> labels = new ArrayList<>();
+        for (String part : Chord.parts(chord)) {
+            Button button = Button.named(part);
+            labels.add(button == null ? part : style.label(button));
+        }
+        return String.join("+", labels);
     }
 
     private static LinearLayout.LayoutParams fullWidth(int topMargin) {
@@ -210,6 +307,7 @@ final class EditorView extends FrameLayout {
     private void select(int index) {
         selected = index;
         awaitingAimStick = false;
+        awaitingSetChord = false;
         gesture.clear();
         changed();
     }
@@ -220,6 +318,8 @@ final class EditorView extends FrameLayout {
     }
 
     private void updateTools() {
+        setMenu.setText("Set " + (current + 1) + " of " + sets.size() + " ▾");
+        hint.setText(setHint());
         editTools.setVisibility(selected >= 0 ? VISIBLE : GONE);
         Control.Aim selectedAim = selected >= 0 && controls.get(selected) instanceof Control.Aim aim ? aim : null;
         fallback.setVisibility(selectedAim != null ? VISIBLE : GONE);
@@ -227,6 +327,16 @@ final class EditorView extends FrameLayout {
         String other = selectedAim.stick().equals("LS") ? "RS" : "LS";
         fallback.setText("Aim with " + other + " when " + selectedAim.stick() + " is idle");
         fallback.setChecked(selectedAim.fallback());
+    }
+
+    private String setHint() {
+        if (awaitingSetChord) return "Hold the buttons that switch to set " + (current + 1) + ", then let go";
+        String chord = chords.get(current);
+        if (chord != null) {
+            return chordText(chord) + " switches to this set" + (current == 0 ? "" : ", and back to set 1");
+        }
+        if (current > 0) return "No chord: nothing switches to this set";
+        return sets.size() > 1 ? "Active at the start" : "";
     }
 
     private String label(int index) {

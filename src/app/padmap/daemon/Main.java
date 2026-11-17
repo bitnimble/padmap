@@ -92,7 +92,7 @@ public final class Main {
     private static Layout load(Store store, String pkg) {
         try {
             Layout layout = LayoutJson.parse(new JSONObject(store.read(pkg)));
-            Log.i("layout for " + pkg + ": " + layout.controls().size() + " controls");
+            Log.i("layout for " + pkg + ": " + layout.sets().size() + " mapping sets");
             return layout;
         } catch (IOException | JSONException e) {
             Log.e("layout for " + pkg + " unreadable; mapping off", e);

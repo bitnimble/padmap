@@ -3,7 +3,7 @@ package app.padmap.layout;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Which touches a layout wants for a pad state. Pure: the injector diffs successive results. */
+/** Which touches a mapping set wants for a pad state. Pure: the injector diffs successive results. */
 public final class Mapper {
     public static final double DEADZONE = 0.2;
 
@@ -13,9 +13,8 @@ public final class Mapper {
     private Mapper() {}
 
     /** aspect = display width / height, so stick offsets (in units of the height-relative radius) stay circular. */
-    public static List<Contact> contacts(Layout layout, PadState pad, double aspect) {
+    public static List<Contact> contacts(List<Control> controls, PadState pad, double aspect) {
         List<Contact> contacts = new ArrayList<>();
-        List<Control> controls = layout.controls();
         // MOBAs end a skill's aim when another finger lands, e.g. on attack: hold taps back until it's cast
         boolean aiming = controls.stream().anyMatch(c -> c instanceof Control.Aim aim && fires(aim.button(), controls, pad));
         for (int i = 0; i < controls.size(); i++) {

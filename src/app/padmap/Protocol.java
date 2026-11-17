@@ -8,7 +8,7 @@ import java.security.NoSuchAlgorithmException;
  * Daemon <-> app messages: JSON objects, one per line, over TCP on loopback. The daemon opens with
  * {"t": "hello", "proof": proof(token)}, so the app only reveals its token to the real daemon; the app answers
  * {"t": "hello", "token": …} with the token the daemon passed when it started the app's service.
- * Daemon to app: state {package, pad, width, height, layout}, input {button | stick} (only while editing),
+ * Daemon to app: state {package, pad, width, height, set (active mapping set's index), layout}, input {button | stick} (only while editing),
  * toggleEditor, saved {package, error?}. App to daemon: hello, editing {on}, save {package, layout}.
  */
 public final class Protocol {

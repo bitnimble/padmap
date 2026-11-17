@@ -1,10 +1,12 @@
 package app.padmap.daemon;
 
 import android.os.SystemClock;
+import app.padmap.layout.Control;
 import app.padmap.layout.Layout;
 import app.padmap.layout.LayoutJson;
 import app.padmap.layout.Mapper;
 import app.padmap.layout.PadState;
+import app.padmap.layout.SetSwitcher;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +31,7 @@ final class Engine {
     private Layout layout = Layout.EMPTY;
     private String padName;
     private PadState pad = PadState.NEUTRAL;
+    private final SetSwitcher switcher = new SetSwitcher();
     private int width = 1, height = 1;
     private long aloneSince = SystemClock.uptimeMillis();
 
@@ -52,6 +55,11 @@ final class Engine {
         } else if (editor != null) {
             reportInput(previous, next);
         } else {
+            if (switcher.update(layout, next)) {
+                injector.cancel();
+                Log.i("mapping set " + (switcher.active() + 1) + " of " + layout.sets().size());
+                broadcastState();
+            }
             retarget();
         }
     }
@@ -67,6 +75,7 @@ final class Engine {
         boolean resized = width != this.width || height != this.height;
         if (!changed && !resized) return;
         injector.cancel();
+        if (!Objects.equals(pkg, focused) || switcher.active() >= layout.sets().size()) switcher.reset();
         focused = pkg;
         this.layout = layout;
         this.width = width;
@@ -118,7 +127,7 @@ final class Engine {
             Layout saved = LayoutJson.parse(json);
             // file only, no layout = saved: the watcher alone sets the live layout; a second writer races its poll
             store.write(pkg, LayoutJson.toJson(saved).toString(2) + "\n");
-            Log.i("saved " + saved.controls().size() + " controls for " + pkg);
+            Log.i("saved " + saved.sets().size() + " mapping sets for " + pkg);
         } catch (IOException | JSONException | IllegalArgumentException e) {
             Log.e("saving the layout for " + pkg + " failed", e);
             reply.put("error", String.valueOf(e.getMessage()));
@@ -145,13 +154,14 @@ final class Engine {
         if (editor != null) {
             injector.setTarget(List.of(), width, height);
         } else {
-            injector.setTarget(Mapper.contacts(layout, pad, width / (double) height), width, height);
+            List<Control> controls = layout.sets().get(switcher.active()).controls();
+            injector.setTarget(Mapper.contacts(controls, switcher.strip(pad), width / (double) height), width, height);
         }
     }
 
     private void updateGrab() {
-        if (gamepad != null) gamepad.setGrab(editor != null || !layout.controls().isEmpty());
-        rumble.setMapping(editor == null && !layout.controls().isEmpty());
+        if (gamepad != null) gamepad.setGrab(editor != null || layout.maps());
+        rumble.setMapping(editor == null && layout.maps());
     }
 
     private void reportInput(PadState previous, PadState next) {
@@ -190,7 +200,7 @@ final class Engine {
         try {
             return message("state").put("package", focused == null ? JSONObject.NULL : focused)
                     .put("pad", padName == null ? JSONObject.NULL : padName)
-                    .put("width", width).put("height", height)
+                    .put("width", width).put("height", height).put("set", switcher.active())
                     .put("layout", LayoutJson.toJson(layout));
         } catch (JSONException e) {
             throw new IllegalStateException(e);

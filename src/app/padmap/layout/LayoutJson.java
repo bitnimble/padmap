@@ -7,30 +7,45 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** The layout file format: {"version": 1, "controls": [{"type": "tap"|"joystick"|"aim", …}]}. */
+/**
+ * The layout file format: {"version": 2, "sets": [{"chord"?: "LB+RB", "controls": [{"type": "tap"|"joystick"|"aim",
+ * …}]}]}. Version 1, {"version": 1, "controls": […]}, is one set without a chord.
+ */
 public final class LayoutJson {
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
     private static final String SINGLE = Button.alternation() + "|KEY_[0-9A-F]+";
     private static final Pattern BUTTON = Pattern.compile("(" + SINGLE + ")(\\+(" + SINGLE + "))*");
 
     private LayoutJson() {}
 
     public static Layout parse(JSONObject json) throws JSONException {
-        int version = json.optInt("version", VERSION);
+        int version = json.optInt("version", json.has("sets") ? VERSION : 1);
+        if (version == 1) return new Layout(List.of(new Layout.MappingSet(null, controls(json))));
         if (version != VERSION) throw new JSONException("unsupported layout version " + version);
+        JSONArray array = json.getJSONArray("sets");
+        if (array.length() == 0) throw new JSONException("sets is empty");
+        List<Layout.MappingSet> sets = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject set = array.getJSONObject(i);
+            sets.add(new Layout.MappingSet(set.has("chord") ? button(set, "chord") : null, controls(set)));
+        }
+        return new Layout(sets);
+    }
+
+    private static List<Control> controls(JSONObject json) throws JSONException {
         JSONArray array = json.getJSONArray("controls");
         List<Control> controls = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) controls.add(control(array.getJSONObject(i)));
-        return new Layout(controls);
+        return controls;
     }
 
     private static Control control(JSONObject json) throws JSONException {
         double x = fraction(json, "x"), y = fraction(json, "y"), radius = fraction(json, "radius");
         String type = json.getString("type");
         return switch (type) {
-            case "tap" -> new Control.Tap(button(json), x, y, radius);
+            case "tap" -> new Control.Tap(button(json, "button"), x, y, radius);
             case "joystick" -> new Control.Joystick(stick(json), x, y, radius);
-            case "aim" -> new Control.Aim(button(json), stick(json), json.optBoolean("fallback"), x, y, radius);
+            case "aim" -> new Control.Aim(button(json, "button"), stick(json), json.optBoolean("fallback"), x, y, radius);
             default -> throw new JSONException("unknown control type " + type);
         };
     }
@@ -41,8 +56,8 @@ public final class LayoutJson {
         return value;
     }
 
-    private static String button(JSONObject json) throws JSONException {
-        String button = json.getString("button");
+    private static String button(JSONObject json, String key) throws JSONException {
+        String button = json.getString(key);
         if (!BUTTON.matcher(button).matches()) throw new JSONException("unknown button " + button);
         return button;
     }
@@ -55,9 +70,15 @@ public final class LayoutJson {
 
     public static JSONObject toJson(Layout layout) {
         try {
-            JSONArray controls = new JSONArray();
-            for (Control control : layout.controls()) controls.put(toJson(control));
-            return new JSONObject().put("version", VERSION).put("controls", controls);
+            JSONArray sets = new JSONArray();
+            for (Layout.MappingSet set : layout.sets()) {
+                JSONArray controls = new JSONArray();
+                for (Control control : set.controls()) controls.put(toJson(control));
+                JSONObject json = new JSONObject();
+                if (set.chord() != null) json.put("chord", set.chord());
+                sets.put(json.put("controls", controls));
+            }
+            return new JSONObject().put("version", VERSION).put("sets", sets);
         } catch (JSONException e) {
             throw new IllegalStateException(e);
         }
