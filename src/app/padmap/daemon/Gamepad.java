@@ -13,6 +13,7 @@ import static app.padmap.daemon.Getevent.ABS_Y;
 import app.padmap.daemon.Getevent.Axes;
 import app.padmap.daemon.Getevent.Device;
 import app.padmap.daemon.Getevent.Range;
+import app.padmap.layout.Button;
 import app.padmap.layout.Mapper;
 import app.padmap.layout.PadState;
 import java.io.FileDescriptor;
@@ -34,12 +35,7 @@ final class Gamepad implements Runnable {
     private static final int EVENT_SIZE = android.os.Process.is64Bit() ? 24 : 16;
     private static final long RESCAN_MS = 2000;
     private static final int POLL_MS = 100;
-    private static final Map<Integer, String> BUTTONS = Map.ofEntries(
-            Map.entry(0x130, "A"), Map.entry(0x131, "B"), Map.entry(0x133, "X"), Map.entry(0x134, "Y"),
-            Map.entry(0x136, "LB"), Map.entry(0x137, "RB"), Map.entry(0x138, "LT"), Map.entry(0x139, "RT"),
-            Map.entry(0x13a, "SELECT"), Map.entry(0x13b, "START"), Map.entry(0x13c, "HOME"),
-            Map.entry(0x13d, "L3"), Map.entry(0x13e, "R3"),
-            Map.entry(0x220, "UP"), Map.entry(0x221, "DOWN"), Map.entry(0x222, "LEFT"), Map.entry(0x223, "RIGHT"));
+    private static final Map<Integer, String> BUTTONS = Map.copyOf(Button.byCode());
 
     private final Consumer<PadState> listener;
     private final Consumer<String> connected;

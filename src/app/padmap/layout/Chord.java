@@ -7,16 +7,12 @@ import java.util.List;
 
 /** One or more pad buttons that must be held together, written "LT+RB". Parts are kept in a canonical order. */
 public final class Chord {
-    private static final List<String> ORDER = List.of(
-            "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "L3", "R3", "UP", "DOWN", "LEFT", "RIGHT", "SELECT", "START",
-            "HOME");
-
     private Chord() {}
 
     /** The canonical "A+B" form of the held buttons, or "A" for one; empty collection yields "". */
     public static String of(Collection<String> buttons) {
         List<String> sorted = new ArrayList<>(buttons);
-        sorted.sort(Comparator.comparingInt(Chord::rank).thenComparing(Comparator.naturalOrder()));
+        sorted.sort(Comparator.comparingInt(Button::rank).thenComparing(Comparator.naturalOrder()));
         return String.join("+", sorted);
     }
 
@@ -36,10 +32,5 @@ public final class Chord {
         List<String> subParts = parts(sub), supParts = parts(sup);
         if (supParts.size() <= subParts.size()) return false;
         return supParts.containsAll(subParts);
-    }
-
-    private static int rank(String button) {
-        int index = ORDER.indexOf(button);
-        return index < 0 ? ORDER.size() : index;
     }
 }
