@@ -27,7 +27,10 @@ public final class SetSwitcherTest {
         step(switcher, layout);
         check(step(switcher, layout, "LB", "RB", "Y"), true, 2, Set.of(), "the larger of two held chords wins");
         switcher.reset();
-        check(step(switcher, layout, "LB", "RB", "Y"), true, 2, Set.of(), "reset returns to the first set and unlatches");
+        check(step(switcher, layout, "LB", "RB", "Y"), false, 0, Set.of(),
+                "reset returns to the first set; a chord still held stays latched");
+        step(switcher, layout);
+        check(step(switcher, layout, "LB", "RB", "Y"), true, 2, Set.of(), "after release the chord switches again");
 
         Layout chordedFirst = new Layout(List.of(new MappingSet("X+Y", TAP), new MappingSet("LB+RB", TAP)));
         SetSwitcher first = new SetSwitcher();

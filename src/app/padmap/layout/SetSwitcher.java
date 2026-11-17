@@ -19,7 +19,6 @@ public final class SetSwitcher {
 
     public void reset() {
         active = 0;
-        latched.clear();
     }
 
     /** Switches if a set chord is newly held; true if the active set changed. */
