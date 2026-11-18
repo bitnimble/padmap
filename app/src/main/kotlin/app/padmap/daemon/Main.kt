@@ -21,7 +21,9 @@ object Main {
     @JvmStatic
     fun main(args: Array<String>) {
         val store = Store()
-        val injector = TouchInjector()
+        val pipe = WaylandTouch.open()
+        Log.i(if (pipe != null) "touches: written to the touchscreen's pipe, merged with fingers" else "touches: injected")
+        val injector = TouchInjector(pipe ?: InjectedTouches())
         val rumble = Rumble()
         val engine = Engine(injector, rumble, store, newToken())
         val server = Server(engine)

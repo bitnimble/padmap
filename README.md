@@ -116,8 +116,8 @@ editor.
 
 ## Limits
 
-- Touching the screen while the gamepad is mid-gesture ends the gamepad's touches (Android doesn't merge two
-  touch devices); they resume with the next input.
+- Outside Waydroid (no `/dev/input/wl_touch_events`), touching the screen while the gamepad is mid-gesture ends the
+  gamepad's touches (Android doesn't merge two touch devices); they resume with the next input.
 - The pad is hidden from Android only while the focused app has a layout or the editor is open.
 - One gamepad at a time: the first device with gamepad buttons and two stick axes.
 - Without a vibrator, an app that looked up the vibrator before the daemon started keeps a vibrator-less handle
@@ -127,7 +127,9 @@ editor.
 
 The APK holds both halves. The daemon (`app.padmap.daemon.Main`) runs from the APK via `app_process` as adb's
 shell user or root, which may inject input: it reads the pad from evdev (`/dev/input`, grabbed while mapping),
-maps it through the focused app's layout and injects multi-touch `MotionEvent`s. Each touch lands at its
+maps it through the focused app's layout and plays the result out as multi-touch. Under Waydroid it writes the
+touches into the touchscreen's own evdev pipe (`/dev/input/wl_touch_events`) in the top slots, so they merge with
+real fingers into one gesture; elsewhere it injects `MotionEvent`s. Each touch lands at its
 anchor, holds for a few frames and then ramps to its target, so games that sample touches per frame see where a
 drag started. The app (`app.padmap.ui`) is the overlay: the editor and setup screen. They talk over
 a loopback socket: the daemon hands the app a fresh token through `am start-foreground-service` (the service
